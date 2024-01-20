@@ -1,0 +1,72 @@
+import vue from './vue-47e41fac.js';
+import javascript from './javascript-78122384.js';
+import './html-b7eb033b.js';
+import './css-3bffa9b0.js';
+import './markdown-ed943c64.js';
+import './ini-bc64dff2.js';
+import './java-b36a89bb.js';
+import './lua-051aa45b.js';
+import './c-7bcddbf3.js';
+import './make-2e432946.js';
+import './perl-08c6522f.js';
+import './xml-2818825a.js';
+import './sql-1d674688.js';
+import './r-b56421d0.js';
+import './ruby-9131b804.js';
+import './shellscript-54242dab.js';
+import './php-131a7018.js';
+import './json-e36dbadf.js';
+import './vb-0bef84f1.js';
+import './xsl-47a4c68f.js';
+import './yaml-a1f70f1a.js';
+import './bat-1fc78d58.js';
+import './clojure-21ee6759.js';
+import './coffee-c52ba301.js';
+import './cpp-f375ae77.js';
+import './glsl-ff21ad95.js';
+import './diff-05acac23.js';
+import './docker-aaa834a3.js';
+import './git-commit-20f66a18.js';
+import './git-rebase-d06cbd62.js';
+import './go-99671c7f.js';
+import './groovy-8885900c.js';
+import './pug-078b05a0.js';
+import './sass-2f8a90c6.js';
+import './scss-abbedc35.js';
+import './stylus-9e6b7c69.js';
+import './jsonc-ef9dbafe.js';
+import './less-d39c6032.js';
+import './objective-c-9a016530.js';
+import './swift-15b85260.js';
+import './raku-2d15cbef.js';
+import './powershell-075a0e94.js';
+import './python-061aa9fe.js';
+import './julia-7981d1ff.js';
+import './rust-4c4b1860.js';
+import './scala-0e39458f.js';
+import './typescript-95afed98.js';
+import './tsx-bf5a80fb.js';
+import './csharp-da203bba.js';
+import './fsharp-4fc27eb6.js';
+import './dart-6959c1de.js';
+import './handlebars-45ae059f.js';
+import './erlang-a119c8e1.js';
+import './elixir-a80c6cfa.js';
+import './latex-4e1783a9.js';
+import './tex-75615637.js';
+import './haskell-69459b5c.js';
+import './gnuplot-064c9701.js';
+import './bibtex-dab21ee7.js';
+import './jsx-936d7c66.js';
+import './json5-e54cc5fc.js';
+import './toml-69f7494a.js';
+import './graphql-b21c89b2.js';
+
+const lang = Object.freeze({ "name": "vue-html", "scopeName": "text.html.vue-html", "fileTypes": [], "uuid": "ca2e4260-5d62-45bf-8cf1-d8b5cc19c8f8", "patterns": [{ "include": "source.vue#vue-interpolations" }, { "name": "meta.tag.any.html", "begin": "(<)([A-Z][a-zA-Z0-9:-]*)(?=[^>]*></\\2>)", "beginCaptures": { "1": { "name": "punctuation.definition.tag.begin.html" }, "2": { "name": "support.class.component.html" } }, "end": "(>)(<)(/)(\\2)(>)", "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" }, "2": { "name": "punctuation.definition.tag.begin.html meta.scope.between-tag-pair.html" }, "3": { "name": "punctuation.definition.tag.begin.html" }, "4": { "name": "support.class.component.html" }, "5": { "name": "punctuation.definition.tag.end.html" } }, "patterns": [{ "include": "#tag-stuff" }] }, { "name": "meta.tag.any.html", "begin": "(<)([a-z][a-zA-Z0-9:-]*)(?=[^>]*></\\2>)", "beginCaptures": { "1": { "name": "punctuation.definition.tag.begin.html" }, "2": { "name": "entity.name.tag.html" } }, "end": "(>)(<)(/)(\\2)(>)", "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" }, "2": { "name": "punctuation.definition.tag.begin.html meta.scope.between-tag-pair.html" }, "3": { "name": "punctuation.definition.tag.begin.html" }, "4": { "name": "entity.name.tag.html" }, "5": { "name": "punctuation.definition.tag.end.html" } }, "patterns": [{ "include": "#tag-stuff" }] }, { "name": "meta.tag.preprocessor.xml.html", "begin": "(<\\?)(xml)", "end": "(\\?>)", "captures": { "1": { "name": "punctuation.definition.tag.html" }, "2": { "name": "entity.name.tag.xml.html" } }, "patterns": [{ "include": "#tag-generic-attribute" }, { "include": "#string-double-quoted" }, { "include": "#string-single-quoted" }] }, { "name": "comment.block.html", "begin": "<!--", "end": "-->", "captures": { "0": { "name": "punctuation.definition.comment.html" } } }, { "name": "meta.tag.sgml.html", "begin": "<!", "end": ">", "captures": { "0": { "name": "punctuation.definition.tag.html" } }, "patterns": [{ "name": "meta.tag.sgml.doctype.html", "begin": "(?i:DOCTYPE)", "end": "(?=>)", "captures": { "1": { "name": "entity.name.tag.doctype.html" } }, "patterns": [{ "name": "string.quoted.double.doctype.identifiers-and-DTDs.html", "match": '"[^">]*"' }] }, { "name": "constant.other.inline-data.html", "begin": "\\[CDATA\\[", "end": "]](?=>)" }, { "name": "invalid.illegal.bad-comments-or-CDATA.html", "match": "(\\s*)(?!--|>)\\S(\\s*)" }] }, { "name": "meta.tag.block.any.html", "begin": "(</?)([A-Z][a-zA-Z0-9:-]*\\b)", "beginCaptures": { "1": { "name": "punctuation.definition.tag.begin.html" }, "2": { "name": "support.class.component.html" } }, "end": "(>)", "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } }, "patterns": [{ "include": "#tag-stuff" }] }, { "name": "meta.tag.block.any.html", "begin": "(</?)([a-z][a-zA-Z0-9:-]*\\b)", "beginCaptures": { "1": { "name": "punctuation.definition.tag.begin.html" }, "2": { "name": "entity.name.tag.block.any.html" } }, "end": "(>)", "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } }, "patterns": [{ "include": "#tag-stuff" }] }, { "name": "meta.tag.structure.any.html", "begin": "(</?)((?i:body|head|html)\\b)", "end": "(>)", "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } }, "captures": { "1": { "name": "punctuation.definition.tag.begin.html" }, "2": { "name": "entity.name.tag.structure.any.html" } }, "patterns": [{ "include": "#tag-stuff" }] }, { "name": "meta.tag.block.any.html", "begin": "(</?)((?i:address|blockquote|dd|div|dl|dt|fieldset|form|frame|frameset|h1|h2|h3|h4|h5|h6|iframe|noframes|object|ol|p|ul|applet|center|dir|hr|menu|pre)(?!-)\\b)", "beginCaptures": { "1": { "name": "punctuation.definition.tag.begin.html" }, "2": { "name": "entity.name.tag.block.any.html" } }, "end": "(>)", "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } }, "patterns": [{ "include": "#tag-stuff" }] }, { "name": "meta.tag.inline.any.html", "begin": "(</?)((?i:a|abbr|acronym|area|b|base|basefont|bdo|big|br|button|caption|cite|code|col|colgroup|del|dfn|em|font|head|html|i|img|input|ins|isindex|kbd|label|legend|li|link|map|meta|noscript|optgroup|option|param|q|s|samp|script|select|small|span|strike|strong|style|sub|sup|table|tbody|td|textarea|tfoot|th|thead|title|tr|tt|u|var)(?!-)\\b)", "beginCaptures": { "1": { "name": "punctuation.definition.tag.begin.html" }, "2": { "name": "entity.name.tag.inline.any.html" } }, "end": "(/?>)", "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } }, "patterns": [{ "include": "#tag-stuff" }] }, { "name": "meta.tag.other.html", "begin": "(</?)([a-zA-Z0-9:-]+)", "beginCaptures": { "1": { "name": "punctuation.definition.tag.begin.html" }, "2": { "name": "entity.name.tag.other.html" } }, "end": "(/?>)", "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } }, "patterns": [{ "include": "#tag-stuff" }] }, { "include": "#entities" }, { "name": "invalid.illegal.incomplete.html", "match": "<>" }, { "name": "invalid.illegal.bad-angle-bracket.html", "match": "<" }], "repository": { "entities": { "patterns": [{ "name": "constant.character.entity.html", "match": "(&)([a-zA-Z0-9]+|#[0-9]+|#x[0-9a-fA-F]+)(;)", "captures": { "1": { "name": "punctuation.definition.entity.html" }, "3": { "name": "punctuation.definition.entity.html" } } }, { "name": "invalid.illegal.bad-ampersand.html", "match": "&" }] }, "string-double-quoted": { "name": "string.quoted.double.html", "begin": '"', "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } }, "end": '"', "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } }, "patterns": [{ "include": "source.vue#vue-interpolations" }, { "include": "#entities" }] }, "string-single-quoted": { "name": "string.quoted.single.html", "begin": "'", "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } }, "end": "'", "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } }, "patterns": [{ "include": "source.vue#vue-interpolations" }, { "include": "#entities" }] }, "tag-generic-attribute": { "name": "entity.other.attribute-name.html", "match": "(?<=[^=])\\b([a-zA-Z0-9:\\-_]+)" }, "tag-id-attribute": { "name": "meta.attribute-with-value.id.html", "begin": "\\b(id)\\b\\s*(=)", "end": `(?!\\G)(?<='|"|[^\\s<>/])`, "captures": { "1": { "name": "entity.other.attribute-name.id.html" }, "2": { "name": "punctuation.separator.key-value.html" } }, "patterns": [{ "name": "string.quoted.double.html", "contentName": "meta.toc-list.id.html", "begin": '"', "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } }, "end": '"', "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } }, "patterns": [{ "include": "source.vue#vue-interpolations" }, { "include": "#entities" }] }, { "name": "string.quoted.single.html", "contentName": "meta.toc-list.id.html", "begin": "'", "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } }, "end": "'", "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } }, "patterns": [{ "include": "source.vue#vue-interpolations" }, { "include": "#entities" }] }, { "name": "string.unquoted.html", "match": `(?<==)(?:[^\\s<>/'"]|/(?!>))+`, "captures": { "0": { "name": "meta.toc-list.id.html" } } }] }, "tag-stuff": { "patterns": [{ "include": "#vue-directives" }, { "include": "#tag-id-attribute" }, { "include": "#tag-generic-attribute" }, { "include": "#string-double-quoted" }, { "include": "#string-single-quoted" }, { "include": "#unquoted-attribute" }] }, "unquoted-attribute": { "name": "string.unquoted.html", "match": `(?<==)(?:[^\\s<>/'"]|/(?!>))+` }, "vue-directives": { "name": "meta.directive.vue", "begin": "(?:\\b(v-)|(:|@|#))([a-zA-Z0-9\\-_]+)(?:\\:([a-zA-Z\\-_]+))?(?:\\.([a-zA-Z\\-_]+))*\\s*(=)", "end": "(?<='|\")|(?=[\\s<>`])", "captures": { "1": { "name": "entity.other.attribute-name.html" }, "2": { "name": "punctuation.separator.key-value.html" }, "3": { "name": "entity.other.attribute-name.html" }, "4": { "name": "entity.other.attribute-name.html" }, "5": { "name": "entity.other.attribute-name.html" }, "6": { "name": "punctuation.separator.key-value.html" } }, "patterns": [{ "name": "source.directive.vue", "begin": "`", "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } }, "end": "`", "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } }, "patterns": [{ "include": "source.js#expression" }] }, { "name": "source.directive.vue", "begin": '"', "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } }, "end": '"', "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } }, "patterns": [{ "include": "source.js#expression" }] }, { "name": "source.directive.vue", "begin": "'", "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.html" } }, "end": "'", "endCaptures": { "0": { "name": "punctuation.definition.string.end.html" } }, "patterns": [{ "include": "source.js#expression" }] }] } }, "displayName": "Vue HTML", "embeddedLangs": ["vue", "javascript"] });
+var vueHtml = [
+  ...vue,
+  ...javascript,
+  lang
+];
+
+export { vueHtml as default };
