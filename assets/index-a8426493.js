@@ -7192,7 +7192,7 @@ var parseMarkdownToJSX = ({
   return parser.parse(markdown);
 };
 
-function escapeRegExp(string) {
+function escapeRegExp$1(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function escapeSelector(str) {
@@ -7255,12 +7255,12 @@ function uniqueBy(array, equalFn) {
     return acc;
   }, []);
 }
-function isString$1(s) {
+function isString$2(s) {
   return typeof s === "string";
 }
 
 function normalizeCSSEntries(obj) {
-  if (isString$1(obj))
+  if (isString$2(obj))
     return obj;
   return (!Array.isArray(obj) ? Object.entries(obj) : obj).filter((i) => i[1] != null);
 }
@@ -7340,10 +7340,10 @@ function clone(val) {
   return val;
 }
 function isStaticRule(rule) {
-  return isString$1(rule[0]);
+  return isString$2(rule[0]);
 }
 function isStaticShortcut(sc) {
-  return isString$1(sc[0]);
+  return isString$2(sc[0]);
 }
 const validateFilterRE = /[\w\u00A0-\uFFFF-_:%-?]/;
 const CONTROL_SHORTCUT_NO_MERGE = "$$shortcut-no-merge";
@@ -7714,14 +7714,14 @@ function mergeAutocompleteShorthands(shorthands) {
     };
   }, {});
 }
-function definePreset(preset) {
+function definePreset$1(preset) {
   return preset;
 }
 
 const version = "0.58.3";
 
-var __defProp$5 = Object.defineProperty;
-var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __defProp$6 = Object.defineProperty;
+var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$6(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField$3 = (obj, key, value) => {
   __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
   return value;
@@ -7825,7 +7825,7 @@ class UnoGenerator {
       minify = false,
       extendedInfo = false
     } = options;
-    const tokens = isString$1(input) ? await this.applyExtractors(
+    const tokens = isString$2(input) ? await this.applyExtractors(
       input,
       id,
       extendedInfo ? new CountableSet() : /* @__PURE__ */ new Set()
@@ -7965,7 +7965,7 @@ class UnoGenerator {
         let handler = await v.match(processed, context);
         if (!handler)
           continue;
-        if (isString$1(handler)) {
+        if (isString$2(handler)) {
           if (handler === processed)
             continue;
           handler = { matcher: handler };
@@ -8027,7 +8027,7 @@ class UnoGenerator {
   }
   constructCustomCSS(context, body, overrideSelector) {
     const normalizedBody = normalizeCSSEntries(body);
-    if (isString$1(normalizedBody))
+    if (isString$2(normalizedBody))
       return normalizedBody;
     const { selector, entries, parent } = this.applyVariants([0, overrideSelector || context.rawSelector, normalizedBody, void 0, context.variantHandlers]);
     const cssBody = `${selector}{${entriesToCss(entries)}}`;
@@ -8036,7 +8036,7 @@ class UnoGenerator {
     return cssBody;
   }
   async parseUtil(input, context, internal = false, shortcutPrefix) {
-    const [raw, processed, variantHandlers] = isString$1(input) ? await this.matchVariants(input) : input;
+    const [raw, processed, variantHandlers] = isString$2(input) ? await this.matchVariants(input) : input;
     if (this.config.details)
       context.rules = context.rules ?? [];
     const staticMatch = this.config.rulesStaticMap[processed];
@@ -8047,7 +8047,7 @@ class UnoGenerator {
         const index = staticMatch[0];
         const entry = normalizeCSSEntries(staticMatch[1]);
         const meta = staticMatch[2];
-        if (isString$1(entry))
+        if (isString$2(entry))
           return [[index, entry, meta]];
         else
           return [[index, raw, entry, meta, variantHandlers]];
@@ -8083,7 +8083,7 @@ class UnoGenerator {
       const entries = normalizeCSSValues(result).filter((i2) => i2.length);
       if (entries.length) {
         return entries.map((e2) => {
-          if (isString$1(e2))
+          if (isString$2(e2))
             return [i, e2, meta];
           else
             return [i, raw, e2, meta, variantHandlers];
@@ -8144,27 +8144,27 @@ class UnoGenerator {
         }
       }
     }
-    if (isString$1(result))
+    if (isString$2(result))
       result = expandVariantGroup(result.trim()).split(/\s+/g);
     if (!result) {
-      const [raw, inputWithoutVariant] = isString$1(input) ? await this.matchVariants(input) : input;
+      const [raw, inputWithoutVariant] = isString$2(input) ? await this.matchVariants(input) : input;
       if (raw !== inputWithoutVariant) {
         const expanded = await this.expandShortcut(inputWithoutVariant, context, depth - 1);
         if (expanded)
-          result = expanded[0].map((item) => isString$1(item) ? raw.replace(inputWithoutVariant, item) : item);
+          result = expanded[0].map((item) => isString$2(item) ? raw.replace(inputWithoutVariant, item) : item);
       }
     }
     if (!result)
       return;
     return [
-      (await Promise.all(result.map(async (r) => (isString$1(r) ? (await this.expandShortcut(r, context, depth - 1))?.[0] : void 0) || [r]))).flat(1).filter(Boolean),
+      (await Promise.all(result.map(async (r) => (isString$2(r) ? (await this.expandShortcut(r, context, depth - 1))?.[0] : void 0) || [r]))).flat(1).filter(Boolean),
       meta
     ];
   }
   async stringifyShortcuts(parent, context, expanded, meta = { layer: this.config.shortcutsLayer }) {
     const selectorMap = new TwoKeyMap();
     const parsed = (await Promise.all(uniq(expanded).map(async (i) => {
-      const result = isString$1(i) ? await this.parseUtil(i, context, true, meta.prefix) : [[Number.POSITIVE_INFINITY, "{inline}", normalizeCSSEntries(i), void 0, []]];
+      const result = isString$2(i) ? await this.parseUtil(i, context, true, meta.prefix) : [[Number.POSITIVE_INFINITY, "{inline}", normalizeCSSEntries(i), void 0, []]];
       if (!result && this.config.warn)
         warnOnce(`unmatched utility "${i}" in shortcut "${parent[1]}"`);
       return result || [];
@@ -8202,7 +8202,7 @@ class UnoGenerator {
     }).flat(2).filter(Boolean));
   }
   isBlocked(raw) {
-    return !raw || this.config.blocklist.some((e2) => typeof e2 === "function" ? e2(raw) : isString$1(e2) ? e2 === raw : e2.test(raw));
+    return !raw || this.config.blocklist.some((e2) => typeof e2 === "function" ? e2(raw) : isString$2(e2) ? e2 === raw : e2.test(raw));
   }
 }
 function createGenerator(config, defaults) {
@@ -8430,7 +8430,7 @@ function getPreflights(context, options) {
   return getCSS({ escapedSelector, selectorName, preflights: DEFAULT(context.theme), compatibility });
 }
 
-const presetTypography = definePreset((options) => {
+const presetTypography = definePreset$1((options) => {
   if (options?.className) {
     console.warn('[unocss:preset-typography] "className" is deprecated. Use "selectorName" instead.');
   }
@@ -8548,6 +8548,13 @@ const extractorArbitraryVariants = {
     return splitCodeWithArbitraryVariants(removeSourceMap(code));
   }
 };
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function isString$1(s) {
+  return typeof s === "string";
+}
 
 var sourcemapCodec_umd = {exports: {}};
 
@@ -13326,7 +13333,7 @@ const PseudoClassesStr = Object.entries(PseudoClasses).filter(([, pseudo]) => !p
 const PseudoClassesColonStr = Object.entries(PseudoClassesColon).filter(([, pseudo]) => !pseudo.startsWith("::")).map(([key]) => key).sort((a, b) => b.length - a.length).join("|");
 const PseudoClassFunctionsStr = PseudoClassFunctions.join("|");
 function taggedPseudoClassMatcher(tag, parent, combinator) {
-  const rawRE = new RegExp(`^(${escapeRegExp(parent)}:)(\\S+)${escapeRegExp(combinator)}\\1`);
+  const rawRE = new RegExp(`^(${escapeRegExp$1(parent)}:)(\\S+)${escapeRegExp$1(combinator)}\\1`);
   let splitRE;
   let pseudoRE;
   let pseudoColonRE;
@@ -13561,7 +13568,7 @@ const shorthands = {
   globalKeyword: globalKeywords
 };
 
-const presetMini = definePreset((options = {}) => {
+const presetMini = definePreset$1((options = {}) => {
   options.dark = options.dark ?? "class";
   options.attributifyPseudo = options.attributifyPseudo ?? false;
   options.preflight = options.preflight ?? true;
@@ -13910,7 +13917,7 @@ const container$g = [
       const { theme, variantHandlers } = context;
       const themePadding = theme.container?.padding;
       let padding;
-      if (isString$1(themePadding))
+      if (isString$2(themePadding))
         padding = themePadding;
       else
         padding = themePadding?.DEFAULT;
@@ -13918,7 +13925,7 @@ const container$g = [
       let maxWidth;
       for (const v of variantHandlers) {
         const query = v.handle?.({}, (x) => x)?.parent;
-        if (isString$1(query)) {
+        if (isString$2(query)) {
           const match = query.match(queryMatcher)?.[1];
           if (match) {
             const bp = resolveBreakpoints(context) ?? [];
@@ -13927,7 +13934,7 @@ const container$g = [
               maxWidth = match;
             else if (matchBp)
               maxWidth = themeMaxWidth?.[matchBp];
-            if (matchBp && !isString$1(themePadding))
+            if (matchBp && !isString$2(themePadding))
               padding = themePadding?.[matchBp] ?? padding;
           }
         }
@@ -14843,7 +14850,7 @@ function variants(options) {
   ];
 }
 
-const presetWind = definePreset((options = {}) => {
+const presetWind = definePreset$1((options = {}) => {
   return {
     ...presetMini(options),
     name: "@unocss/preset-wind",
@@ -14917,7 +14924,7 @@ function variantColorMix() {
   };
 }
 
-const presetUno = definePreset((options = {}) => {
+const presetUno = definePreset$1((options = {}) => {
   const wind = presetWind(options);
   return {
     ...wind,
@@ -14926,6 +14933,27 @@ const presetUno = definePreset((options = {}) => {
       ...wind.variants,
       variantColorMix()
     ]
+  };
+});
+
+function definePreset(preset) {
+  return preset;
+}
+
+const remRE = /(-?[\.\d]+)rem/g;
+const presetRemToPx = definePreset((options = {}) => {
+  const {
+    baseFontSize = 16
+  } = options;
+  return {
+    name: "@unocss/preset-rem-to-px",
+    postprocess: (util) => {
+      util.entries.forEach((i) => {
+        const value = i[1];
+        if (typeof value === "string" && remRE.test(value))
+          i[1] = value.replace(remRE, (_, p1) => `${p1 * baseFontSize}px`);
+      });
+    }
   };
 });
 
@@ -14938,7 +14966,7 @@ function transformerCompileClass(options = {}) {
     alwaysHash = false
   } = options;
   const compiledClass = /* @__PURE__ */ new Set();
-  const regexp = typeof trigger === "string" ? RegExp(`(["'\`])${escapeRegExp(trigger)}\\s([^\\1]*?)\\1`, "g") : trigger;
+  const regexp = typeof trigger === "string" ? RegExp(`(["'\`])${escapeRegExp$1(trigger)}\\s([^\\1]*?)\\1`, "g") : trigger;
   return {
     name: "@unocss/transformer-compile-class",
     enforce: "pre",
@@ -15098,11 +15126,11 @@ var escapeStringRegexp = string => {
 
 const escapeStringRegexp$1 = /*@__PURE__*/getDefaultExportFromCjs(escapeStringRegexp);
 
-var __defProp$4 = Object.defineProperty;
-var __name$1 = (target, value) => __defProp$4(target, "name", { value, configurable: true });
+var __defProp$5 = Object.defineProperty;
+var __name$2 = (target, value) => __defProp$5(target, "name", { value, configurable: true });
 
 // src/shallow-clone-node.ts
-var shallowCloneNode = /* @__PURE__ */ __name$1(function(obj, parent) {
+var shallowCloneNode = /* @__PURE__ */ __name$2(function(obj, parent) {
   const cloned = new obj.constructor();
   Object.keys(obj).forEach((i) => {
     if (!obj.hasOwnProperty(i)) {
@@ -15137,7 +15165,7 @@ var RE_SELECTOR_DESCENDANT_SPLIT = (
   // eslint-disable-next-line no-useless-escape
   /(.*?(?:(?:\([^\)]+\)|\[[^\]]+\]|(?![><+~\s]).)+)(?:(?:(?:\s(?!>>))|(?:\t(?!>>))|(?:\s?>>\s?))(?!\s+))(?![><+~][\s]+?))/
 );
-var generateDescendantPiecesFromSelector = /* @__PURE__ */ __name$1(function(selector) {
+var generateDescendantPiecesFromSelector = /* @__PURE__ */ __name$2(function(selector) {
   return selector.split(RE_SELECTOR_DESCENDANT_SPLIT).filter((piece) => {
     if (piece.length > 0) {
       return true;
@@ -15153,7 +15181,7 @@ var generateDescendantPiecesFromSelector = /* @__PURE__ */ __name$1(function(sel
 }, "generateDescendantPiecesFromSelector");
 
 // src/generate-scope-list.ts
-var generateScopeList = /* @__PURE__ */ __name$1(function(node, includeSelf) {
+var generateScopeList = /* @__PURE__ */ __name$2(function(node, includeSelf) {
   includeSelf = includeSelf || false;
   let selectorScopeList = [
     // Start off with one branch
@@ -15203,7 +15231,7 @@ var alwaysAncestorSelector = {
   ":root": true,
   html: true
 };
-var isPieceAlwaysAncestorSelector = /* @__PURE__ */ __name$1(function(piece) {
+var isPieceAlwaysAncestorSelector = /* @__PURE__ */ __name$2(function(piece) {
   return !!alwaysAncestorSelector[piece];
 }, "isPieceAlwaysAncestorSelector");
 
@@ -15212,7 +15240,7 @@ var RE_SELECTOR_DIRECT_DESCENDANT_SPLIT = (
   // eslint-disable-next-line no-useless-escape
   /(.*?(?:(?:\([^\)]+\)|\[[^\]]+\]|(?!>>|<|\+|~|\s).)+)(?:(?:(?:>(?!>))|(?:\s?>(?!>)\s?))(?!\s+))(?!(?:>>|<|\+|~)[\s]+?))/
 );
-var generateDirectDescendantPiecesFromSelector = /* @__PURE__ */ __name$1(function(selector) {
+var generateDirectDescendantPiecesFromSelector = /* @__PURE__ */ __name$2(function(selector) {
   return selector.split(RE_SELECTOR_DIRECT_DESCENDANT_SPLIT).filter((piece) => {
     if (piece.length > 0) {
       return true;
@@ -15291,8 +15319,8 @@ function getScopeMatchResults(nodeScopeList, scopeNodeScopeList) {
     scopePieceIndex
   };
 }
-__name$1(getScopeMatchResults, "getScopeMatchResults");
-var stripPseudoSelectorsFromScopeList = /* @__PURE__ */ __name$1(function(scopeList) {
+__name$2(getScopeMatchResults, "getScopeMatchResults");
+var stripPseudoSelectorsFromScopeList = /* @__PURE__ */ __name$2(function(scopeList) {
   return scopeList.map(
     (scopePieces) => scopePieces.map((descendantPiece) => {
       if (!RE_AT_RULE_SCOPE_PIECE.test(descendantPiece)) {
@@ -15305,7 +15333,7 @@ var stripPseudoSelectorsFromScopeList = /* @__PURE__ */ __name$1(function(scopeL
     })
   );
 }, "stripPseudoSelectorsFromScopeList");
-var isUnderScope = /* @__PURE__ */ __name$1(function(nodeScopeList, scopeNodeScopeList, ignorePseudo) {
+var isUnderScope = /* @__PURE__ */ __name$2(function(nodeScopeList, scopeNodeScopeList, ignorePseudo) {
   nodeScopeList = stripPseudoSelectorsFromScopeList(nodeScopeList);
   if (ignorePseudo) {
     scopeNodeScopeList = stripPseudoSelectorsFromScopeList(scopeNodeScopeList);
@@ -15315,14 +15343,14 @@ var isUnderScope = /* @__PURE__ */ __name$1(function(nodeScopeList, scopeNodeSco
 isUnderScope.RE_PSEUDO_SELECTOR = RE_PSEUDO_SELECTOR;
 
 // src/is-node-under-scope.ts
-var isNodeUnderScope = /* @__PURE__ */ __name$1(function(node, scopeNode, ignorePseudo) {
+var isNodeUnderScope = /* @__PURE__ */ __name$2(function(node, scopeNode, ignorePseudo) {
   const nodeScopeList = generateScopeList(node, true);
   const scopeNodeScopeList = generateScopeList(scopeNode, true);
   return isUnderScope(nodeScopeList, scopeNodeScopeList, ignorePseudo);
 }, "isNodeUnderScope");
 
 // src/gather-variable-dependencies.ts
-var gatherVariableDependencies = /* @__PURE__ */ __name$1(function(variablesUsed, map, _dependencyVariablesList) {
+var gatherVariableDependencies = /* @__PURE__ */ __name$2(function(variablesUsed, map, _dependencyVariablesList) {
   _dependencyVariablesList = _dependencyVariablesList || [];
   let hasCircularOrSelfReference = false;
   if (variablesUsed) {
@@ -15362,7 +15390,7 @@ var gatherVariableDependencies = /* @__PURE__ */ __name$1(function(variablesUsed
 }, "gatherVariableDependencies");
 
 // src/find-node-ancestor-with-selector.ts
-var findNodeAncestorWithSelector = /* @__PURE__ */ __name$1(function(selector, node) {
+var findNodeAncestorWithSelector = /* @__PURE__ */ __name$2(function(selector, node) {
   let matchingNode;
   let currentNode = node;
   while (currentNode.parent && !matchingNode) {
@@ -15382,7 +15410,7 @@ var findNodeAncestorWithSelector = /* @__PURE__ */ __name$1(function(selector, n
 }, "findNodeAncestorWithSelector");
 
 // src/clone-splice-parent-onto-node-when.ts
-var cloneSpliceParentOntoNodeWhen = /* @__PURE__ */ __name$1(function(node, parent, whenCb) {
+var cloneSpliceParentOntoNodeWhen = /* @__PURE__ */ __name$2(function(node, parent, whenCb) {
   whenCb = whenCb || function() {
     return true;
   };
@@ -15425,7 +15453,7 @@ var RE_VAR_FUNC = /var\(\s*(--[^,\s)]+)/;
 function toString$1(value) {
   return String(value);
 }
-__name$1(toString$1, "toString");
+__name$2(toString$1, "toString");
 function balancedVar(value) {
   const match = balanced$1("(", ")", value);
   if (match) {
@@ -15454,8 +15482,8 @@ function balancedVar(value) {
     }
   }
 }
-__name$1(balancedVar, "balancedVar");
-var resolveValue = /* @__PURE__ */ __name$1(function(decl, map, ignorePseudoScope, _debugIsInternal) {
+__name$2(balancedVar, "balancedVar");
+var resolveValue = /* @__PURE__ */ __name$2(function(decl, map, ignorePseudoScope, _debugIsInternal) {
   let matchingVarDecl;
   let resultantValue = toString$1(decl.value);
   const warnings = [];
@@ -15575,11 +15603,11 @@ function eachMapItemDependencyOfDecl(variablesUsedList, map, decl, cb) {
     });
   });
 }
-__name$1(eachMapItemDependencyOfDecl, "eachMapItemDependencyOfDecl");
-var resolveDecl = /* @__PURE__ */ __name$1(function(decl, map, shouldPreserve, preserveAtRulesOrder, logResolveValueResult) {
+__name$2(eachMapItemDependencyOfDecl, "eachMapItemDependencyOfDecl");
+var resolveDecl = /* @__PURE__ */ __name$2(function(decl, map, shouldPreserve, preserveAtRulesOrder, logResolveValueResult) {
   shouldPreserve = (typeof shouldPreserve === "function" ? shouldPreserve(decl) : shouldPreserve) || false;
   preserveAtRulesOrder = preserveAtRulesOrder || false;
-  const _logResolveValueResult = /* @__PURE__ */ __name$1(function(valueResults2) {
+  const _logResolveValueResult = /* @__PURE__ */ __name$2(function(valueResults2) {
     if (logResolveValueResult) {
       logResolveValueResult(valueResults2);
     }
@@ -15648,7 +15676,7 @@ function eachCssVariableDeclaration(css, cb) {
     }
   });
 }
-__name$1(eachCssVariableDeclaration, "eachCssVariableDeclaration");
+__name$2(eachCssVariableDeclaration, "eachCssVariableDeclaration");
 function cleanUpNode(node) {
   let nodeToPossiblyCleanUp = node;
   while (nodeToPossiblyCleanUp && nodeToPossiblyCleanUp.nodes.length <= 0) {
@@ -15661,7 +15689,7 @@ function cleanUpNode(node) {
     }
   }
 }
-__name$1(cleanUpNode, "cleanUpNode");
+__name$2(cleanUpNode, "cleanUpNode");
 var defaults$1 = {
   // Allows you to preserve custom properties & var() usage in output.
   // `true`, `false`, or `'computed'`
@@ -15677,7 +15705,7 @@ var defaults$1 = {
   // or an object with a `value` property and an optional `isImportant` bool property
   variables: {}
 };
-var postcssVarReplace = /* @__PURE__ */ __name$1((options = {}) => {
+var postcssVarReplace = /* @__PURE__ */ __name$2((options = {}) => {
   const opts = Object.assign({}, defaults$1, options);
   return {
     Once(css, { decl, result, rule }) {
@@ -15714,7 +15742,7 @@ var postcssVarReplace = /* @__PURE__ */ __name$1((options = {}) => {
           return prevVariableMap;
         }, {})
       );
-      const logResolveValueResult = /* @__PURE__ */ __name$1(function(valueResult) {
+      const logResolveValueResult = /* @__PURE__ */ __name$2(function(valueResult) {
         const warningList = [].concat(valueResult.warnings);
         warningList.forEach((warningArgs) => {
           warningArgs = [].concat(warningArgs);
@@ -21835,6 +21863,72 @@ function handleDeprecatedOptions (options) {
     }
   }
 }
+
+var __defProp$4 = Object.defineProperty;
+var __name$1 = (target, value) => __defProp$4(target, "name", { value, configurable: true });
+
+// src/index.ts
+var importPlugins = /* @__PURE__ */ __name$1(async () => {
+  const rehypeMinifyAttributeWhitespace = await __vitePreload(() => import('./index-2d8b1a46.js'),true?["assets/index-2d8b1a46.js","assets/index-aedb0dc6.js","assets/index-3fa01af2.js","assets/index-1c34005f.js"]:void 0);
+  const rehypeMinifyCssStyle = await __vitePreload(() => import('./index-c71a405f.js'),true?["assets/index-c71a405f.js","assets/index-a2c1aed2.js","assets/index-5679ecf3.js","assets/index-aedb0dc6.js","assets/index-b88e09d5.js"]:void 0);
+  const rehypeMinifyEnumeratedAttribute = await __vitePreload(() => import('./index-f8fc72cd.js'),true?["assets/index-f8fc72cd.js","assets/index-16411aa5.js","assets/index-b88e09d5.js","assets/index-dd77df7e.js","assets/index-68e080e8.js"]:void 0);
+  const rehypeMinifyMediaAttribute = await __vitePreload(() => import('./index-3b919046.js'),true?["assets/index-3b919046.js","assets/index-a2c1aed2.js"]:void 0);
+  const rehypeMinifyMetaColor = await __vitePreload(() => import('./index-e8f11c6d.js'),true?["assets/index-e8f11c6d.js","assets/index-a2c1aed2.js"]:void 0);
+  const rehypeMinifyMetaContent = await __vitePreload(() => import('./index-1cac845f.js'),true?["assets/index-1cac845f.js","assets/index-dd77df7e.js"]:void 0);
+  const rehypeMinifyStyleAttribute = await __vitePreload(() => import('./index-4a5f8e56.js'),true?["assets/index-4a5f8e56.js","assets/index-a2c1aed2.js"]:void 0);
+  const rehypeMinifyWhitespace = await __vitePreload(() => import('./index-b7be72cb.js'),true?["assets/index-b7be72cb.js","assets/index-68e080e8.js","assets/index-1c34005f.js"]:void 0);
+  const rehypeNormalizeAttributeValueCase = await __vitePreload(() => import('./index-df176f4d.js'),true?["assets/index-df176f4d.js","assets/index-1c34005f.js"]:void 0);
+  const rehypeRemoveComments = await __vitePreload(() => import('./index-19005b38.js'),true?[]:void 0);
+  const rehypeRemoveDuplicateAttributeValues = await __vitePreload(() => import('./index-00f85054.js'),true?["assets/index-00f85054.js","assets/index-1c34005f.js"]:void 0);
+  const rehypeRemoveEmptyAttribute = await __vitePreload(() => import('./index-81cbdb73.js'),true?["assets/index-81cbdb73.js","assets/index-3fa01af2.js","assets/index-1c34005f.js"]:void 0);
+  const rehypeRemoveExternalScriptContent = await __vitePreload(() => import('./index-d9e50f02.js'),true?["assets/index-d9e50f02.js","assets/index-aedb0dc6.js"]:void 0);
+  const rehypeRemoveMetaHttpEquiv = await __vitePreload(() => import('./index-2cc9c430.js'),true?["assets/index-2cc9c430.js","assets/index-16411aa5.js"]:void 0);
+  const rehypeRemoveStyleTypeCss = await __vitePreload(() => import('./index-a411fa68.js'),true?["assets/index-a411fa68.js","assets/index-aedb0dc6.js","assets/index-5679ecf3.js"]:void 0);
+  const rehypeSortAttributeValues = await __vitePreload(() => import('./index-9c635c72.js'),true?["assets/index-9c635c72.js","assets/index-1c34005f.js"]:void 0);
+  const rehypeSortAttributes = await __vitePreload(() => import('./index-ceaf9a65.js'),true?[]:void 0);
+  return [
+    rehypeMinifyAttributeWhitespace,
+    rehypeMinifyCssStyle,
+    // Note: `rehypeRemoveMetaHttpEquiv` goes before
+    // `rehypeMinifyEnumeratedAttribute`, as the latter might minify things further.
+    rehypeRemoveMetaHttpEquiv,
+    rehypeMinifyEnumeratedAttribute,
+    rehypeMinifyMediaAttribute,
+    rehypeMinifyMetaColor,
+    rehypeMinifyMetaContent,
+    rehypeMinifyStyleAttribute,
+    rehypeMinifyWhitespace,
+    rehypeNormalizeAttributeValueCase,
+    rehypeRemoveComments,
+    rehypeRemoveDuplicateAttributeValues,
+    rehypeRemoveEmptyAttribute,
+    rehypeRemoveExternalScriptContent,
+    rehypeRemoveStyleTypeCss,
+    rehypeSortAttributeValues,
+    rehypeSortAttributes
+  ].map((mod) => mod.default);
+}, "importPlugins");
+var settings = {
+  allowParseErrors: true,
+  bogusComments: true,
+  characterReferences: {
+    omitOptionalSemicolons: true,
+    useShortestReferences: true
+  },
+  closeEmptyElements: true,
+  collapseEmptyAttributes: true,
+  omitOptionalTags: true,
+  preferUnquoted: true,
+  quoteSmart: true,
+  tightAttributes: true,
+  tightCommaSeparatedLists: true,
+  tightDoctype: true,
+  tightSelfClosing: true
+};
+var minifyPreset = /* @__PURE__ */ __name$1(async () => {
+  const plugins = await importPlugins();
+  return { plugins, settings };
+}, "minifyPreset");
 
 var js = {exports: {}};
 
@@ -28106,7 +28200,7 @@ function isReactForwardRef(type) {
 __name(isReactForwardRef, "isReactForwardRef");
 var debugProps3 = debug.elements.enabled ? { dataType: "jsx-email/code" } : {};
 var getHighlighter$1 = mem(async (language, theme = "nord") => {
-  const { getHighlighter: getHighBro } = await __vitePreload(() => import('./index-8a7a36e6.js'),true?[]:void 0);
+  const { getHighlighter: getHighBro } = await __vitePreload(() => import('./index-e57db53b.js'),true?[]:void 0);
   const shiki = await getHighBro({
     langs: language ? [language] : [],
     themes: [theme]
@@ -28136,7 +28230,23 @@ var ColorScheme = /* @__PURE__ */ __name(({ mode = "normal" }) => {
 }, "ColorScheme");
 ColorScheme.displayName = "ColorScheme";
 var debugProps4 = debug.elements.enabled ? { dataType: "jsx-email/column" } : {};
-var Column = /* @__PURE__ */ __name(({ children, style, ...props }) => /* @__PURE__ */ jsxRuntimeExports.jsx("td", { ...props, ...debugProps4, style, children }), "Column");
+var Column = /* @__PURE__ */ __name(({
+  children,
+  bgColor,
+  bgImage,
+  style,
+  ...props
+}) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+  "td",
+  {
+    background: bgImage,
+    bgcolor: bgColor,
+    ...props,
+    ...debugProps4,
+    style,
+    children
+  }
+), "Column");
 Column.displayName = "Column";
 var notMso = /* @__PURE__ */ __name((html) => `<!--[if !mso]><!-->${html}<!--<![endif]-->`, "notMso");
 var comment$1 = /* @__PURE__ */ __name((expression, html) => `<!--[if ${expression}]>${html}<![endif]-->`, "comment");
@@ -28213,8 +28323,15 @@ var Font = /* @__PURE__ */ __name(({
 }, "Font");
 Font.displayName = "Font";
 var debugProps6 = debug.elements.enabled ? { dataType: "jsx-email/head" } : {};
-var Head = /* @__PURE__ */ __name(({ children, ...props }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("head", { ...props, ...debugProps6, children: [
+var Head = /* @__PURE__ */ __name(({
+  children,
+  enableFormatDetection = false,
+  ...props
+}) => /* @__PURE__ */ jsxRuntimeExports.jsxs("head", { ...props, ...debugProps6, children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx("meta", { httpEquiv: "Content-Type", content: "text/html; charset=UTF-8" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("meta", { name: "viewport", content: "width=device-width, initial-scale=1, user-scalable=yes" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("meta", { name: "x-apple-disable-message-reformatting" }),
+  !enableFormatDetection && /* @__PURE__ */ jsxRuntimeExports.jsx("meta", { name: "format-detection", content: "telephone=no, date=no, address=no, email=no, url=no" }),
   children
 ] }), "Head");
 Head.displayName = "Head";
@@ -28468,7 +28585,14 @@ var getUno = /* @__PURE__ */ __name((config, production) => {
     delete config.theme.extend;
     config.theme = { ...config.theme, ...extend };
   }
-  const presets = [...config.presets || [], presetTypography(), presetUno(), presetWind()];
+  const presets = [
+    ...config.presets || [],
+    // Convert all `rem` values to `px`
+    presetRemToPx(),
+    presetTypography(),
+    presetUno({ dark: "media" }),
+    presetWind()
+  ];
   const uno = createGenerator({
     ...config,
     presets,
@@ -28500,7 +28624,7 @@ var render = /* @__PURE__ */ __name(async ({
 }, "render");
 var Renderer3 = /* @__PURE__ */ __name((props) => {
   const html = useData(props, () => render(props));
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ...debugProps16, dangerouslySetInnerHTML: { __html: html } });
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("head", { ...debugProps16, dangerouslySetInnerHTML: { __html: html } });
 }, "Renderer");
 var Tailwind = /* @__PURE__ */ __name(({ children, ...props }) => /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.Suspense, { fallback: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "waiting" }), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Renderer3, { ...props, children }) }) }), "Tailwind");
 var debugProps17 = debug.elements.enabled ? { dataType: "jsx-email/text" } : {};
@@ -28522,13 +28646,10 @@ var processHtml = /* @__PURE__ */ __name(async ({ html, minify, pretty }) => {
   const { default: stringify } = await __vitePreload(() => import('https://jspm.dev/rehype-stringify@10.0.0'),true?[]:void 0);
   const { visit } = await __vitePreload(() => import('https://jspm.dev/unist-util-visit@5.0.0'),true?[]:void 0);
   const docType = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">';
-  const settings = {
-    emitParseErrors: true
-    // fragment: true
-  };
+  const settings = { emitParseErrors: true };
   const reJsxTags = new RegExp(`<[/]?(${jsxEmailTags.join("|")})>`, "g");
   function rehypeMoveStyle() {
-    return function(tree) {
+    return /* @__PURE__ */ __name(function moveStyle(tree) {
       const matches = [];
       let head;
       visit(tree, "element", (node, _, parent) => {
@@ -28536,25 +28657,25 @@ var processHtml = /* @__PURE__ */ __name(async ({ html, minify, pretty }) => {
           head = node;
         }
         if (parent && node.tagName === "style" && (parent.type !== "element" || parent.tagName !== "head")) {
-          matches.push([parent, node]);
+          const found = node;
+          found.parent = parent;
+          found.index = parent.children.indexOf(node);
+          matches.push(found);
         }
       });
       if (head) {
-        let index = -1;
-        while (++index < matches.length) {
-          const match = matches[index];
-          const siblings = match[0].children;
-          siblings.splice(siblings.indexOf(match[1]), 1);
-          head.children.push(match[1]);
+        head.children.push(...matches);
+        for (const node of matches) {
+          node.parent.children.splice(node.index, 1);
         }
       }
-    };
+    }, "moveStyle");
   }
   __name(rehypeMoveStyle, "rehypeMoveStyle");
   let processor = rehype().data("settings", settings).use(rehypeMoveStyle);
   if (minify) {
-    const { default: rehypeMinify } = await __vitePreload(() => import('./index-b0d1bd0b.js'),true?[]:void 0);
-    processor = processor.use(rehypeMinify);
+    const preset = await minifyPreset();
+    processor = processor.use(preset);
   }
   const doc = await processor.use(stringify, {
     allowDangerousCharacters: true,
@@ -28599,6 +28720,12 @@ var render2 = /* @__PURE__ */ __name(async (component, options) => {
  */
 
 const baseUrl$i = "https://jsx.email/assets/demo/";
+const PreviewProps$c = {
+  authorName: "Joker",
+  authorImage: `${baseUrl$i}batman-twilight.jpg`,
+  reviewText: `"Batsy's stay at my Airbnb Batcave was a riot! Batman surprised with a hidden sense of humor, engaging in epic banter and a prank war. His detective skills impressed, and the Batcave remained spotless. Game night and snacks were a hit, and even during downtime, he couldn't resist a Bat-signal. Hosting Batsy was chaos perfected – if you want a guest with brooding intensity and unexpected laughter, Batman's your Bat. Hahahahahahahahahaha! "`
+};
+const TemplateName$i = "Airbnb Review";
 const main$i = {
   backgroundColor: "#ffffff",
   fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
@@ -28660,11 +28787,7 @@ const footer$a = {
   fontSize: "14px",
   marginBottom: "10px"
 };
-const AirbnbReviewEmail = ({
-  authorName,
-  authorImage,
-  reviewText
-}) => {
+const Template$i = ({ authorName, authorImage, reviewText }) => {
   const previewText = `Read ${authorName}'s review`;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
@@ -28705,16 +28828,12 @@ const AirbnbReviewEmail = ({
     ] }) }) })
   ] });
 };
-AirbnbReviewEmail.PreviewProps = {
-  authorName: "Joker",
-  authorImage: `${baseUrl$i}batman-twilight.jpg`,
-  reviewText: `"Batsy's stay at my Airbnb Batcave was a riot! Batman surprised with a hidden sense of humor, engaging in epic banter and a prank war. His detective skills impressed, and the Batcave remained spotless. Game night and snacks were a hit, and even during downtime, he couldn't resist a Bat-signal. Hosting Batsy was chaos perfected – if you want a guest with brooding intensity and unexpected laughter, Batman's your Bat. Hahahahahahahahahaha! "`
-};
 
 const __vite_glob_0_0 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    AirbnbReviewEmail,
-    default: AirbnbReviewEmail
+    PreviewProps: PreviewProps$c,
+    Template: Template$i,
+    TemplateName: TemplateName$i
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const baseUrl$h = "https://jsx.email/assets/demo/";
@@ -28892,7 +29011,8 @@ const walletLinkText = {
   fontWeight: "400",
   textDecoration: "none"
 };
-const AppleReceiptEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+const TemplateName$h = "Apple Receipt";
+const Template$h = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Apple Receipt" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$h, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$e, children: [
@@ -29078,12 +29198,170 @@ const AppleReceiptEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { c
 
 const __vite_glob_0_1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    AppleReceiptEmail,
-    default: AppleReceiptEmail
+    Template: Template$h,
+    TemplateName: TemplateName$h
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const main$g = {
+  fontFamily: '"Google Sans",Roboto,RobotoDraft,Helvetica,Arial,sans-serif',
+  backgroundColor: "#505050",
+  margin: "0"
+};
+const imgHeader = {
+  margin: "auto"
+};
+const header$1 = {
+  width: "100%",
+  backgroundColor: "#191919",
+  margin: "0 auto",
+  paddingBottom: "30px",
+  zIndex: "999"
+};
+const container$d = {
+  paddingLeft: "12px",
+  paddingRight: "12px",
+  margin: "0 auto",
+  width: "648px",
+  maxWidth: "648px",
+  position: "relative"
+};
+const challengeLink = {
+  backgroundColor: "#505050",
+  textAlign: "center",
+  padding: "10px 0 25px 0",
+  fontSize: "13px",
+  position: "absolute",
+  width: "100%",
+  maxWidth: "648px",
+  top: "-28px",
+  margin: "0 0 16px 0"
+};
+const link$6 = {
+  color: "#fff",
+  cursor: "pointer"
+};
+const blueLink = {
+  color: "#15c",
+  cursor: "pointer"
+};
+const heading$3 = {
+  background: "#f0d361",
+  padding: "30px",
+  color: "#191919",
+  fontWeight: "400",
+  marginBottom: "0"
+};
+const section$1 = {
+  margin: "0",
+  background: "#fff",
+  padding: "0 24px"
+};
+const yellowSection = {
+  background: "#f5d247",
+  padding: "30px",
+  fontSize: "18px",
+  lineHeight: "1.5"
+};
+const text$5 = {
+  fontSize: "16px"
+};
+const cubeText = { fontSize: "32px", margin: "4px 0 0 0" };
+const yourChallenge = {
+  fontSize: "16px",
+  border: "6px solid #ebd473",
+  padding: "20px",
+  margin: "0 0 40px 0"
+};
+const sectionPro = {
+  marginTop: "40px",
+  marginBottom: "24px",
+  textAlign: "center",
+  background: "#0b112a",
+  color: "#fff",
+  padding: "35px 20px 30px 20px",
+  border: "6px solid #2138c6"
+};
+const imagePro = { margin: "0 auto 30px auto" };
+const button$9 = {
+  background: "#2138c6",
+  color: "#fff",
+  border: "0",
+  fontSize: "15px",
+  lineHeight: "18px",
+  cursor: "pointer",
+  borderRadius: "4px",
+  padding: "12px 12px"
+};
+const resourcesTitle = {
+  fontWeight: "900",
+  lineHeight: "1.1",
+  marginTop: "-40px",
+  fontSize: "18px"
+};
+const ideasTitle = {
+  fontWeight: "900",
+  lineHeight: "1.1",
+  fontSize: "18px"
+};
+const ideas = {
+  width: "50%",
+  paddingRight: "10px"
+};
+const resources = {
+  width: "50%",
+  paddingLeft: "10px"
+};
+const card = {
+  padding: "20px",
+  margin: "0 0 20px 0",
+  borderRadius: "10px",
+  fontSize: "36px",
+  textAlign: "center"
+};
+const yellowCard = {
+  ...card,
+  background: "#fff4c8",
+  border: "1px solid #f4d247"
+};
+const blueCard = {
+  ...card,
+  background: "#d9f6ff",
+  border: "1px solid #92bfd0"
+};
+const textCard = {
+  fontSize: "13px",
+  textAlign: "left"
+};
+const goToChallenge = {
+  margin: "40px 0 120px 0",
+  textAlign: "center"
+};
+const footerButton = {
+  fontSize: "26px",
+  color: "#15c",
+  background: "#222",
+  borderRadius: "4px",
+  fontWeight: "bold",
+  padding: "15px 30px",
+  cursor: "pointer"
+};
+const footer$9 = {
+  background: "#fff",
+  color: "#505050",
+  padding: "0 24px",
+  marginBottom: "48px"
+};
+const footerText$2 = {
+  fontSize: "13px"
+};
+const footerLink$2 = {
+  textDecoration: "underline",
+  color: "#505050",
+  cursor: "pointer"
+};
 const baseUrl$g = "https://jsx.email/assets/demo/";
-const CodepenChallengersEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+const TemplateName$g = "Codepen Challengers";
+const Template$g = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "#CodePenChallenge: Cubes" }),
   /* @__PURE__ */ jsxRuntimeExports.jsxs(Body, { style: main$g, children: [
@@ -29245,203 +29523,13 @@ const CodepenChallengersEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Htm
     ] })
   ] })
 ] });
-const main$g = {
-  fontFamily: '"Google Sans",Roboto,RobotoDraft,Helvetica,Arial,sans-serif',
-  backgroundColor: "#505050",
-  margin: "0"
-};
-const imgHeader = {
-  margin: "auto"
-};
-const header$1 = {
-  width: "100%",
-  backgroundColor: "#191919",
-  margin: "0 auto",
-  paddingBottom: "30px",
-  zIndex: "999"
-};
-const container$d = {
-  paddingLeft: "12px",
-  paddingRight: "12px",
-  margin: "0 auto",
-  width: "648px",
-  maxWidth: "648px",
-  position: "relative"
-};
-const challengeLink = {
-  backgroundColor: "#505050",
-  textAlign: "center",
-  padding: "10px 0 25px 0",
-  fontSize: "13px",
-  position: "absolute",
-  width: "100%",
-  maxWidth: "648px",
-  top: "-28px",
-  margin: "0 0 16px 0"
-};
-const link$6 = {
-  color: "#fff",
-  cursor: "pointer"
-};
-const blueLink = {
-  color: "#15c",
-  cursor: "pointer"
-};
-const heading$3 = {
-  background: "#f0d361",
-  padding: "30px",
-  color: "#191919",
-  fontWeight: "400",
-  marginBottom: "0"
-};
-const section$1 = {
-  margin: "0",
-  background: "#fff",
-  padding: "0 24px"
-};
-const yellowSection = {
-  background: "#f5d247",
-  padding: "30px",
-  fontSize: "18px",
-  lineHeight: "1.5"
-};
-const text$5 = {
-  fontSize: "16px"
-};
-const cubeText = { fontSize: "32px", margin: "4px 0 0 0" };
-const yourChallenge = {
-  fontSize: "16px",
-  border: "6px solid #ebd473",
-  padding: "20px",
-  margin: "0 0 40px 0"
-};
-const sectionPro = {
-  marginTop: "40px",
-  marginBottom: "24px",
-  textAlign: "center",
-  background: "#0b112a",
-  color: "#fff",
-  padding: "35px 20px 30px 20px",
-  border: "6px solid #2138c6"
-};
-const imagePro = { margin: "0 auto 30px auto" };
-const button$9 = {
-  background: "#2138c6",
-  color: "#fff",
-  border: "0",
-  fontSize: "15px",
-  lineHeight: "18px",
-  cursor: "pointer",
-  borderRadius: "4px",
-  padding: "12px 12px"
-};
-const resourcesTitle = {
-  fontWeight: "900",
-  lineHeight: "1.1",
-  marginTop: "-40px",
-  fontSize: "18px"
-};
-const ideasTitle = {
-  fontWeight: "900",
-  lineHeight: "1.1",
-  fontSize: "18px"
-};
-const ideas = {
-  width: "50%",
-  paddingRight: "10px"
-};
-const resources = {
-  width: "50%",
-  paddingLeft: "10px"
-};
-const card = {
-  padding: "20px",
-  margin: "0 0 20px 0",
-  borderRadius: "10px",
-  fontSize: "36px",
-  textAlign: "center"
-};
-const yellowCard = {
-  ...card,
-  background: "#fff4c8",
-  border: "1px solid #f4d247"
-};
-const blueCard = {
-  ...card,
-  background: "#d9f6ff",
-  border: "1px solid #92bfd0"
-};
-const textCard = {
-  fontSize: "13px",
-  textAlign: "left"
-};
-const goToChallenge = {
-  margin: "40px 0 120px 0",
-  textAlign: "center"
-};
-const footerButton = {
-  fontSize: "26px",
-  color: "#15c",
-  background: "#222",
-  borderRadius: "4px",
-  fontWeight: "bold",
-  padding: "15px 30px",
-  cursor: "pointer"
-};
-const footer$9 = {
-  background: "#fff",
-  color: "#505050",
-  padding: "0 24px",
-  marginBottom: "48px"
-};
-const footerText$2 = {
-  fontSize: "13px"
-};
-const footerLink$2 = {
-  textDecoration: "underline",
-  color: "#505050",
-  cursor: "pointer"
-};
 
 const __vite_glob_0_2 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    CodepenChallengersEmail,
-    default: CodepenChallengersEmail
+    Template: Template$g,
+    TemplateName: TemplateName$g
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$f = "https://jsx.email/assets/demo/";
-const DropboxResetPasswordEmail = ({
-  userFirstname,
-  resetPasswordLink
-}) => {
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Dropbox reset your password" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$f, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$c, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$f}dropbox-logo.png`, width: "40", height: "33", alt: "Dropbox" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: text$4, children: [
-          "Hi ",
-          userFirstname,
-          ","
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: text$4, children: "Someone recently requested a password change for your Dropbox account. If this was you, you can set a new password here:" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { style: button$8, href: resetPasswordLink, children: "Reset password" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: text$4, children: "If you don't want to change your password or didn't request this, just ignore and delete this message." }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: text$4, children: [
-          "To keep your account secure, please don't forward this email to anyone. See our Help Center for",
-          " ",
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: anchor$1, href: "https://dropbox.com", children: "more security tips." })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: text$4, children: "Happy Dropboxing!" })
-      ] })
-    ] }) })
-  ] });
-};
-DropboxResetPasswordEmail.PreviewProps = {
-  userFirstname: "Bruce",
-  resetPasswordLink: "https://dropbox.com"
-};
 const main$f = {
   backgroundColor: "#f6f9fc",
   padding: "10px 0"
@@ -29473,51 +29561,45 @@ const button$8 = {
 const anchor$1 = {
   textDecoration: "underline"
 };
+const baseUrl$f = "https://jsx.email/assets/demo/";
+const PreviewProps$b = {
+  userFirstname: "Bruce",
+  resetPasswordLink: "https://dropbox.com"
+};
+const TemplateName$f = "Dropbox Reset Password";
+const Template$f = ({ userFirstname, resetPasswordLink }) => {
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Dropbox reset your password" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$f, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$c, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$f}dropbox-logo.png`, width: "40", height: "33", alt: "Dropbox" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: text$4, children: [
+          "Hi ",
+          userFirstname,
+          ","
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: text$4, children: "Someone recently requested a password change for your Dropbox account. If this was you, you can set a new password here:" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { style: button$8, href: resetPasswordLink, children: "Reset password" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: text$4, children: "If you don't want to change your password or didn't request this, just ignore and delete this message." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: text$4, children: [
+          "To keep your account secure, please don't forward this email to anyone. See our Help Center for",
+          " ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: anchor$1, href: "https://dropbox.com", children: "more security tips." })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: text$4, children: "Happy Dropboxing!" })
+      ] })
+    ] }) })
+  ] });
+};
 
 const __vite_glob_0_3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    DropboxResetPasswordEmail,
-    default: DropboxResetPasswordEmail
+    PreviewProps: PreviewProps$b,
+    Template: Template$f,
+    TemplateName: TemplateName$f
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$e = "https://jsx.email/assets/demo/";
-const GithubAccessTokenEmail = ({ username }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "A fine-grained personal access token has been added to your account" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$e, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$b, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$e}github.png`, width: "32", height: "32", alt: "Github" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: title$1, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("strong", { children: [
-        "@",
-        username
-      ] }),
-      ", a personal access was created on your account."
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: section, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: text$3, children: [
-        "Hey ",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: username }),
-        "!"
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: text$3, children: [
-        "A fine-grained personal access token (",
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { children: "resend" }),
-        ") was recently added to your account."
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { style: button$7, children: "View your token" })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: links, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: link$5, children: "Your security audit log" }),
-      " ・",
-      " ",
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: link$5, children: "Contact support" })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$8, children: "GitHub, Inc. ・88 Colin P Kelly Jr Street ・San Francisco, CA 94107" })
-  ] }) })
-] });
-GithubAccessTokenEmail.PreviewProps = {
-  username: "Batman"
-};
 const main$e = {
   backgroundColor: "#ffffff",
   color: "#24292e",
@@ -29563,30 +29645,53 @@ const footer$8 = {
   textAlign: "center",
   marginTop: "60px"
 };
+const baseUrl$e = "https://jsx.email/assets/demo/";
+const PreviewProps$a = {
+  username: "Batman"
+};
+const TemplateName$e = "Github Access Token";
+const Template$e = ({ username }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "A fine-grained personal access token has been added to your account" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$e, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$b, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$e}github.png`, width: "32", height: "32", alt: "Github" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: title$1, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("strong", { children: [
+        "@",
+        username
+      ] }),
+      ", a personal access was created on your account."
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: section, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: text$3, children: [
+        "Hey ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: username }),
+        "!"
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: text$3, children: [
+        "A fine-grained personal access token (",
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { children: "resend" }),
+        ") was recently added to your account."
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { style: button$7, children: "View your token" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: links, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: link$5, children: "Your security audit log" }),
+      " ・",
+      " ",
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: link$5, children: "Contact support" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$8, children: "GitHub, Inc. ・88 Colin P Kelly Jr Street ・San Francisco, CA 94107" })
+  ] }) })
+] });
 
 const __vite_glob_0_4 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    GithubAccessTokenEmail,
-    default: GithubAccessTokenEmail
+    PreviewProps: PreviewProps$a,
+    Template: Template$e,
+    TemplateName: TemplateName$e
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$d = "https://jsx.email/assets/demo/";
-const LinearLoginCodeEmail = ({ validationCode }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Your login code for Linear" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$d, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$a, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$d}linear-logo.png`, width: "42", height: "42", alt: "Linear", style: logo$5 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { style: heading$2, children: "Your login code for Linear" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: buttonContainer$1, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { style: button$6, href: "https://linear.app", children: "Login to Linear" }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$9, children: "This link and code will only be valid for the next 5 minutes. If the link does not work, you can use the login verification code directly:" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("code", { style: code$2, children: validationCode }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: hr$4 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { href: "https://linear.app", style: reportLink, children: "Linear" })
-  ] }) })
-] });
-LinearLoginCodeEmail.PreviewProps = {
-  validationCode: "tt226-5398x"
-};
 const logo$5 = {
   borderRadius: 21,
   width: 42,
@@ -29647,15 +29752,83 @@ const code$2 = {
   borderRadius: "4px",
   color: "#3c4149"
 };
+const baseUrl$d = "https://jsx.email/assets/demo/";
+const PreviewProps$9 = {
+  validationCode: "tt226-5398x"
+};
+const TemplateName$d = "Linear Login Code";
+const Template$d = ({ validationCode }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Your login code for Linear" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$d, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$a, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$d}linear-logo.png`, width: "42", height: "42", alt: "Linear", style: logo$5 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { style: heading$2, children: "Your login code for Linear" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: buttonContainer$1, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { style: button$6, href: "https://linear.app", children: "Login to Linear" }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$9, children: "This link and code will only be valid for the next 5 minutes. If the link does not work, you can use the login verification code directly:" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("code", { style: code$2, children: validationCode }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: hr$4 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { href: "https://linear.app", style: reportLink, children: "Linear" })
+  ] }) })
+] });
 
 const __vite_glob_0_5 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    LinearLoginCodeEmail,
-    default: LinearLoginCodeEmail
+    PreviewProps: PreviewProps$9,
+    Template: Template$d,
+    TemplateName: TemplateName$d
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const main$c = {
+  backgroundColor: "#ffffff"
+};
+const container$9 = {
+  paddingLeft: "12px",
+  paddingRight: "12px",
+  margin: "0 auto"
+};
+const h1$1 = {
+  color: "#333",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+  fontSize: "24px",
+  fontWeight: "bold",
+  margin: "40px 0",
+  padding: "0"
+};
+const link$4 = {
+  color: "#2754C5",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+  fontSize: "14px",
+  textDecoration: "underline"
+};
+const text$2 = {
+  color: "#333",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+  fontSize: "14px",
+  margin: "24px 0"
+};
+const footer$7 = {
+  color: "#898989",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+  fontSize: "12px",
+  lineHeight: "22px",
+  marginTop: "12px",
+  marginBottom: "24px"
+};
+const code$1 = {
+  display: "inline-block",
+  padding: "16px 4.5%",
+  width: "90.5%",
+  backgroundColor: "#f4f4f4",
+  borderRadius: "5px",
+  border: "1px solid #eee",
+  color: "#333"
+};
 const baseUrl$c = "https://jsx.email/assets/demo/";
-const NotionMagicLinkEmail = ({ loginCode }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+const PreviewProps$8 = {
+  loginCode: "sparo-ndigo-amurt-secan"
+};
+const TemplateName$c = "Notion Magic Link";
+const Template$c = ({ loginCode }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Log in with this magic link" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$c, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$9, children: [
@@ -29708,98 +29881,14 @@ const NotionMagicLinkEmail = ({ loginCode }) => /* @__PURE__ */ jsxRuntimeExport
     ] })
   ] }) })
 ] });
-NotionMagicLinkEmail.PreviewProps = {
-  loginCode: "sparo-ndigo-amurt-secan"
-};
-const main$c = {
-  backgroundColor: "#ffffff"
-};
-const container$9 = {
-  paddingLeft: "12px",
-  paddingRight: "12px",
-  margin: "0 auto"
-};
-const h1$1 = {
-  color: "#333",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "24px",
-  fontWeight: "bold",
-  margin: "40px 0",
-  padding: "0"
-};
-const link$4 = {
-  color: "#2754C5",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "14px",
-  textDecoration: "underline"
-};
-const text$2 = {
-  color: "#333",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "14px",
-  margin: "24px 0"
-};
-const footer$7 = {
-  color: "#898989",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "12px",
-  lineHeight: "22px",
-  marginTop: "12px",
-  marginBottom: "24px"
-};
-const code$1 = {
-  display: "inline-block",
-  padding: "16px 4.5%",
-  width: "90.5%",
-  backgroundColor: "#f4f4f4",
-  borderRadius: "5px",
-  border: "1px solid #eee",
-  color: "#333"
-};
 
 const __vite_glob_0_6 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    NotionMagicLinkEmail,
-    default: NotionMagicLinkEmail
+    PreviewProps: PreviewProps$8,
+    Template: Template$c,
+    TemplateName: TemplateName$c
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$b = "https://jsx.email/assets/demo/";
-const RaycastMagicLinkEmail = ({ magicLink }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Log in with this magic link." }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$b, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$8, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$b}raycast-logo.png`, width: 48, height: 48, alt: "Raycast" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { style: heading$1, children: "🪄 Your magic link" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: body$2, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$8, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: link$3, href: magicLink, children: "👉 Click here to sign in 👈" }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$8, children: "If you didn't request this, please ignore this email." })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$8, children: [
-      "Best,",
-      /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
-      "- Raycast Team"
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: hr$3 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(
-      Img,
-      {
-        src: `${baseUrl$b}raycast-logo.png`,
-        width: 32,
-        height: 32,
-        style: {
-          WebkitFilter: "grayscale(100%)",
-          filter: "grayscale(100%)",
-          margin: "20px 0"
-        }
-      }
-    ),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$6, children: "Raycast Technologies Inc." }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$6, children: "2093 Philadelphia Pike #3222, Claymont, DE 19703" })
-  ] }) })
-] });
-RaycastMagicLinkEmail.PreviewProps = {
-  magicLink: "https://raycast.com"
-};
 const main$b = {
   backgroundColor: "#ffffff",
   fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
@@ -29835,14 +29924,52 @@ const footer$6 = {
   fontSize: "12px",
   marginLeft: "4px"
 };
+const baseUrl$b = "https://jsx.email/assets/demo/";
+const PreviewProps$7 = {
+  magicLink: "https://raycast.com"
+};
+const TemplateName$b = "Raycast Magic Link";
+const Template$b = ({ magicLink }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Log in with this magic link." }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$b, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$8, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$b}raycast-logo.png`, width: 48, height: 48, alt: "Raycast" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { style: heading$1, children: "🪄 Your magic link" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: body$2, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$8, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: link$3, href: magicLink, children: "👉 Click here to sign in 👈" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$8, children: "If you didn't request this, please ignore this email." })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$8, children: [
+      "Best,",
+      /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+      "- Raycast Team"
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: hr$3 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      Img,
+      {
+        src: `${baseUrl$b}raycast-logo.png`,
+        width: 32,
+        height: 32,
+        style: {
+          WebkitFilter: "grayscale(100%)",
+          filter: "grayscale(100%)",
+          margin: "20px 0"
+        }
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$6, children: "Raycast Technologies Inc." }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$6, children: "2093 Philadelphia Pike #3222, Claymont, DE 19703" })
+  ] }) })
+] });
 
 const __vite_glob_0_7 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    RaycastMagicLinkEmail,
-    default: RaycastMagicLinkEmail
+    PreviewProps: PreviewProps$7,
+    Template: Template$b,
+    TemplateName: TemplateName$b
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$a = "https://jsx.email/assets/demo/";
 const fontFamily = "HelveticaNeue,Helvetica,Arial,sans-serif";
 const main$a = {
   backgroundColor: "#efeef1",
@@ -29885,10 +30012,13 @@ const sectionCenter = {
 const link$2 = {
   textDecoration: "underline"
 };
-const TwitchResetPasswordEmail = ({
-  username,
-  updatedDate
-}) => {
+const baseUrl$a = "https://jsx.email/assets/demo/";
+const PreviewProps$6 = {
+  username: "Batman",
+  updatedDate: /* @__PURE__ */ new Date("June 23, 2022 4:06:00 pm UTC")
+};
+const TemplateName$a = "Twitch Reset Password";
+const Template$a = ({ username, updatedDate }) => {
   const formattedDate = new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeStyle: "medium"
@@ -29953,19 +30083,66 @@ const TwitchResetPasswordEmail = ({
     ] })
   ] });
 };
-TwitchResetPasswordEmail.PreviewProps = {
-  username: "Batman",
-  updatedDate: /* @__PURE__ */ new Date("June 23, 2022 4:06:00 pm UTC")
-};
 
 const __vite_glob_0_8 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    TwitchResetPasswordEmail,
-    default: TwitchResetPasswordEmail
+    PreviewProps: PreviewProps$6,
+    Template: Template$a,
+    TemplateName: TemplateName$a
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const main$9 = {
+  backgroundColor: "#dbddde",
+  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
+};
+const sectionLogo = {
+  padding: "0 40px"
+};
+const headerBlue = {
+  marginTop: "-1px"
+};
+const container$6 = {
+  margin: "30px auto",
+  width: "610px",
+  backgroundColor: "#fff",
+  borderRadius: 5,
+  overflow: "hidden"
+};
+const containerContact = {
+  backgroundColor: "#f0fcff",
+  width: "90%",
+  borderRadius: "5px",
+  overflow: "hidden",
+  paddingLeft: "20px"
+};
+const heading = {
+  fontSize: "14px",
+  lineHeight: "26px",
+  fontWeight: "700",
+  color: "#004dcf"
+};
+const paragraphContent = {
+  padding: "0 40px"
+};
+const paragraphList = {
+  paddingLeft: 40
+};
+const paragraph$6 = {
+  fontSize: "14px",
+  lineHeight: "22px",
+  color: "#3c4043"
+};
+const link$1 = {
+  ...paragraph$6,
+  color: "#004dcf"
+};
+const hr$2 = {
+  borderColor: "#e8eaed",
+  margin: "20px 0"
+};
 const baseUrl$9 = "https://jsx.email/assets/demo/";
-const GooglePlayPolicyUpdateEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+const TemplateName$9 = "Google Play Policy Update";
+const Template$9 = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Google Play developers" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$9, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$6, children: [
@@ -30073,64 +30250,171 @@ const GooglePlayPolicyUpdateEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs
     ] })
   ] }) })
 ] });
-const main$9 = {
-  backgroundColor: "#dbddde",
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-const sectionLogo = {
-  padding: "0 40px"
-};
-const headerBlue = {
-  marginTop: "-1px"
-};
-const container$6 = {
-  margin: "30px auto",
-  width: "610px",
-  backgroundColor: "#fff",
-  borderRadius: 5,
-  overflow: "hidden"
-};
-const containerContact = {
-  backgroundColor: "#f0fcff",
-  width: "90%",
-  borderRadius: "5px",
-  overflow: "hidden",
-  paddingLeft: "20px"
-};
-const heading = {
-  fontSize: "14px",
-  lineHeight: "26px",
-  fontWeight: "700",
-  color: "#004dcf"
-};
-const paragraphContent = {
-  padding: "0 40px"
-};
-const paragraphList = {
-  paddingLeft: 40
-};
-const paragraph$6 = {
-  fontSize: "14px",
-  lineHeight: "22px",
-  color: "#3c4043"
-};
-const link$1 = {
-  ...paragraph$6,
-  color: "#004dcf"
-};
-const hr$2 = {
-  borderColor: "#e8eaed",
-  margin: "20px 0"
-};
 
 const __vite_glob_0_9 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    GooglePlayPolicyUpdateEmail,
-    default: GooglePlayPolicyUpdateEmail
+    Template: Template$9,
+    TemplateName: TemplateName$9
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const paddingX = {
+  paddingLeft: "40px",
+  paddingRight: "40px"
+};
+const paddingY = {
+  paddingTop: "22px",
+  paddingBottom: "22px"
+};
+const paragraph$5 = {
+  margin: "0",
+  lineHeight: "2"
+};
+const global$1 = {
+  paddingX,
+  paddingY,
+  defaultPadding: {
+    ...paddingX,
+    ...paddingY
+  },
+  paragraphWithBold: { ...paragraph$5, fontWeight: "bold" },
+  heading: {
+    fontSize: "32px",
+    lineHeight: "1.3",
+    fontWeight: "700",
+    textAlign: "center",
+    letterSpacing: "-1px"
+  },
+  text: {
+    ...paragraph$5,
+    color: "#747474",
+    fontWeight: "500"
+  },
+  button: {
+    border: "1px solid #929292",
+    fontSize: "16px",
+    textDecoration: "none",
+    padding: "10px 0px",
+    width: "220px",
+    display: "block",
+    textAlign: "center",
+    fontWeight: 500,
+    color: "#000"
+  },
+  hr: {
+    borderColor: "#E5E5E5",
+    margin: "0"
+  }
+};
+const main$8 = {
+  backgroundColor: "#ffffff",
+  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
+};
+const container$5 = {
+  margin: "10px auto",
+  width: "600px",
+  border: "1px solid #E5E5E5"
+};
+const track = {
+  container: {
+    padding: "22px 40px",
+    backgroundColor: "#F7F7F7"
+  },
+  number: {
+    margin: "12px 0 0 0",
+    fontWeight: 500,
+    lineHeight: "1.4",
+    color: "#6F6F6F"
+  }
+};
+const message = {
+  padding: "40px 74px",
+  textAlign: "center"
+};
+const adressTitle = {
+  ...paragraph$5,
+  fontSize: "15px",
+  fontWeight: "bold"
+};
+const recomendationsText = {
+  margin: "0",
+  fontSize: "15px",
+  lineHeight: "1",
+  paddingLeft: "10px",
+  paddingRight: "10px"
+};
+const recomendations = {
+  container: {
+    padding: "20px 0"
+  },
+  product: {
+    verticalAlign: "top",
+    textAlign: "left",
+    paddingLeft: "2px",
+    paddingRight: "2px"
+  },
+  title: { ...recomendationsText, paddingTop: "12px", fontWeight: "500" },
+  text: {
+    ...recomendationsText,
+    paddingTop: "4px",
+    color: "#747474"
+  }
+};
+const menu = {
+  container: {
+    paddingLeft: "20px",
+    paddingRight: "20px",
+    paddingTop: "20px",
+    backgroundColor: "#F7F7F7"
+  },
+  content: {
+    ...paddingY,
+    paddingLeft: "20px",
+    paddingRight: "20px"
+  },
+  title: {
+    paddingLeft: "20px",
+    paddingRight: "20px",
+    fontWeight: "bold"
+  },
+  text: {
+    fontSize: "13.5px",
+    marginTop: 0,
+    fontWeight: 500,
+    color: "#000"
+  },
+  tel: {
+    paddingLeft: "20px",
+    paddingRight: "20px",
+    paddingTop: "32px",
+    paddingBottom: "22px"
+  }
+};
+const categories = {
+  container: {
+    width: "370px",
+    margin: "auto",
+    paddingTop: "12px"
+  },
+  text: {
+    fontWeight: "500",
+    color: "#000"
+  }
+};
+const footer$4 = {
+  policy: {
+    width: "166px",
+    margin: "auto"
+  },
+  text: {
+    margin: "0",
+    color: "#AFAFAF",
+    fontSize: "13px",
+    textAlign: "center"
+  }
+};
 const baseUrl$8 = "https://jsx.email/assets/demo/";
-const NikeReceiptEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+const TemplateName$8 = "Nike Receipt";
+const Template$8 = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Get your order summary, estimated delivery date and more" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$8, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$5, children: [
@@ -30306,192 +30590,13 @@ const NikeReceiptEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { ch
     ] })
   ] }) })
 ] });
-const paddingX = {
-  paddingLeft: "40px",
-  paddingRight: "40px"
-};
-const paddingY = {
-  paddingTop: "22px",
-  paddingBottom: "22px"
-};
-const paragraph$5 = {
-  margin: "0",
-  lineHeight: "2"
-};
-const global$1 = {
-  paddingX,
-  paddingY,
-  defaultPadding: {
-    ...paddingX,
-    ...paddingY
-  },
-  paragraphWithBold: { ...paragraph$5, fontWeight: "bold" },
-  heading: {
-    fontSize: "32px",
-    lineHeight: "1.3",
-    fontWeight: "700",
-    textAlign: "center",
-    letterSpacing: "-1px"
-  },
-  text: {
-    ...paragraph$5,
-    color: "#747474",
-    fontWeight: "500"
-  },
-  button: {
-    border: "1px solid #929292",
-    fontSize: "16px",
-    textDecoration: "none",
-    padding: "10px 0px",
-    width: "220px",
-    display: "block",
-    textAlign: "center",
-    fontWeight: 500,
-    color: "#000"
-  },
-  hr: {
-    borderColor: "#E5E5E5",
-    margin: "0"
-  }
-};
-const main$8 = {
-  backgroundColor: "#ffffff",
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-const container$5 = {
-  margin: "10px auto",
-  width: "600px",
-  border: "1px solid #E5E5E5"
-};
-const track = {
-  container: {
-    padding: "22px 40px",
-    backgroundColor: "#F7F7F7"
-  },
-  number: {
-    margin: "12px 0 0 0",
-    fontWeight: 500,
-    lineHeight: "1.4",
-    color: "#6F6F6F"
-  }
-};
-const message = {
-  padding: "40px 74px",
-  textAlign: "center"
-};
-const adressTitle = {
-  ...paragraph$5,
-  fontSize: "15px",
-  fontWeight: "bold"
-};
-const recomendationsText = {
-  margin: "0",
-  fontSize: "15px",
-  lineHeight: "1",
-  paddingLeft: "10px",
-  paddingRight: "10px"
-};
-const recomendations = {
-  container: {
-    padding: "20px 0"
-  },
-  product: {
-    verticalAlign: "top",
-    textAlign: "left",
-    paddingLeft: "2px",
-    paddingRight: "2px"
-  },
-  title: { ...recomendationsText, paddingTop: "12px", fontWeight: "500" },
-  text: {
-    ...recomendationsText,
-    paddingTop: "4px",
-    color: "#747474"
-  }
-};
-const menu = {
-  container: {
-    paddingLeft: "20px",
-    paddingRight: "20px",
-    paddingTop: "20px",
-    backgroundColor: "#F7F7F7"
-  },
-  content: {
-    ...paddingY,
-    paddingLeft: "20px",
-    paddingRight: "20px"
-  },
-  title: {
-    paddingLeft: "20px",
-    paddingRight: "20px",
-    fontWeight: "bold"
-  },
-  text: {
-    fontSize: "13.5px",
-    marginTop: 0,
-    fontWeight: 500,
-    color: "#000"
-  },
-  tel: {
-    paddingLeft: "20px",
-    paddingRight: "20px",
-    paddingTop: "32px",
-    paddingBottom: "22px"
-  }
-};
-const categories = {
-  container: {
-    width: "370px",
-    margin: "auto",
-    paddingTop: "12px"
-  },
-  text: {
-    fontWeight: "500",
-    color: "#000"
-  }
-};
-const footer$4 = {
-  policy: {
-    width: "166px",
-    margin: "auto"
-  },
-  text: {
-    margin: "0",
-    color: "#AFAFAF",
-    fontSize: "13px",
-    textAlign: "center"
-  }
-};
 
 const __vite_glob_0_10 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    NikeReceiptEmail,
-    default: NikeReceiptEmail
+    Template: Template$8,
+    TemplateName: TemplateName$8
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$7 = "https://jsx.email/assets/demo/";
-const PlaidVerifyIdentityEmail = ({ validationCode }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs(Body, { style: main$7, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$4, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$7}plaid-logo.png`, width: "212", height: "88", alt: "Plaid", style: logo$3 }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: tertiary, children: "Verify Your Identity" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { style: secondary, children: "Enter the following code to finish linking Venmo." }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: codeContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: code, children: validationCode }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$4, children: "Not expecting this email?" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$4, children: [
-        "Contact",
-        " ",
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { href: "mailto:login@plaid.com", style: link, children: "login@plaid.com" }),
-        " ",
-        "if you did not request this code."
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$3, children: "Securely powered by Plaid." })
-  ] })
-] });
-PlaidVerifyIdentityEmail.PreviewProps = {
-  validationCode: "144833"
-};
 const main$7 = {
   backgroundColor: "#ffffff",
   fontFamily: "HelveticaNeue,Helvetica,Arial,sans-serif"
@@ -30579,14 +30684,39 @@ const footer$3 = {
   textAlign: "center",
   textTransform: "uppercase"
 };
+const baseUrl$7 = "https://jsx.email/assets/demo/";
+const PreviewProps$5 = {
+  validationCode: "144833"
+};
+const TemplateName$7 = "Plaid Verify Identity";
+const Template$7 = ({ validationCode }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs(Body, { style: main$7, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$4, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$7}plaid-logo.png`, width: "212", height: "88", alt: "Plaid", style: logo$3 }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: tertiary, children: "Verify Your Identity" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { style: secondary, children: "Enter the following code to finish linking Venmo." }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: codeContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: code, children: validationCode }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$4, children: "Not expecting this email?" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$4, children: [
+        "Contact",
+        " ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { href: "mailto:login@plaid.com", style: link, children: "login@plaid.com" }),
+        " ",
+        "if you did not request this code."
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$3, children: "Securely powered by Plaid." })
+  ] })
+] });
 
 const __vite_glob_0_11 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    PlaidVerifyIdentityEmail,
-    default: PlaidVerifyIdentityEmail
+    PreviewProps: PreviewProps$5,
+    Template: Template$7,
+    TemplateName: TemplateName$7
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$6 = "https://jsx.email/assets/demo/";
 const footerText$1 = {
   fontSize: "12px",
   color: "#b7b7b7",
@@ -30650,7 +30780,12 @@ const text$1 = {
   fontSize: "14px",
   lineHeight: "24px"
 };
-const SlackConfirmEmail = ({ validationCode }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+const baseUrl$6 = "https://jsx.email/assets/demo/";
+const PreviewProps$4 = {
+  validationCode: "DJZ-TLX"
+};
+const TemplateName$6 = "Slack Confirm";
+const Template$6 = ({ validationCode }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Confirm your email address" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$6, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$3, children: [
@@ -30751,87 +30886,14 @@ const SlackConfirmEmail = ({ validationCode }) => /* @__PURE__ */ jsxRuntimeExpo
     ] })
   ] }) })
 ] });
-SlackConfirmEmail.PreviewProps = {
-  validationCode: "DJZ-TLX"
-};
 
 const __vite_glob_0_12 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    SlackConfirmEmail,
-    default: SlackConfirmEmail
+    PreviewProps: PreviewProps$4,
+    Template: Template$6,
+    TemplateName: TemplateName$6
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$5 = "https://jsx.email/assets/demo/";
-const PropDefaults$1 = {
-  tips: [
-    {
-      id: 1,
-      description: 'To find a specific phrase, enter it in quotes: "local storage"'
-    },
-    {
-      id: 1,
-      description: "To search within specific tag(s), enter them in square brackets: [javascript]"
-    },
-    {
-      id: 1,
-      description: 'Combine them to get even more precise results - [javascript] "local storage" searches for the phrase “local storage” in questions that have the [javascript] tag'
-    }
-  ]
-};
-const StackOverflowTipsEmail = ({ tips = [] }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Stack overflow tips for searching" }),
-  /* @__PURE__ */ jsxRuntimeExports.jsxs(Body, { style: main$5, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$2, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: logo$2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { width: 146, src: `${baseUrl$5}stack-overflow-logo.png` }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: header, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Row, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(Column, { style: headerContent, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { style: headerContentTitle, children: "Find what you want, faster" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: headerContentSubtitle, children: "Tips and tricks for searching on Stack Overflow" })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Column, { style: headerImageContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { width: 340, src: `${baseUrl$5}stack-overflow-header.png` }) })
-      ] }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: content$1, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { as: "h2", style: title, children: "Searching for solutions" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$3, children: [
-          "With more than 18 million questions, it's possible that someone has already provided a solution to the problem you're facing.",
-          " "
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: divider }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { as: "h2", style: title, children: "Use the search bar at the top of the page to find what you need" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$3, children: "Here are a few simple search tips to get you started:" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { children: tips.map((tip) => /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$3, children: tip.description }) }, tip.id)) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$3, children: "The more information you can put in the search bar, the more likely you will be to either find the answer you need or feel confident that no one else has asked the question before." }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: divider }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { as: "h2", style: title, children: "Take a break and read about the worst coder in the world" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: buttonContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: button$5, href: "https://stackoverflow.blog/2019/10/22/", children: "I need a break" }) })
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: footer$2, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footerText, children: "You're receiving this email because your Stack Overflow activity triggered this tip or reminder." }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(Link$1, { href: "/", style: footerLink, children: [
-        "Unsubscribe from emails like this",
-        " "
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(Link$1, { href: "/", style: footerLink, children: [
-        "Edit email settings",
-        " "
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { href: "/", style: footerLink, children: "Contact us" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { href: "/", style: footerLink, children: "Privacy" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: footerDivider }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { width: 111, src: `${baseUrl$5}stack-overflow-logo-sm.png` }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: footerAddress, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Stack Overflow" }),
-        ", 110 William Street, 28th Floor, New York, NY 10038"
-      ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footerHeart, children: "<3" })
-    ] })
-  ] })
-] });
-StackOverflowTipsEmail.PreviewProps = {
-  tips: PropDefaults$1.tips
-};
 const main$5 = {
   backgroundColor: "#f3f3f5",
   fontFamily: "HelveticaNeue,Helvetica,Arial,sans-serif"
@@ -30940,15 +31002,100 @@ const footerHeart = {
   maxWidth: "min-content",
   margin: "0 0 32px 0"
 };
+const baseUrl$5 = "https://jsx.email/assets/demo/";
+const PropDefaults$1 = {
+  tips: [
+    {
+      id: 1,
+      description: 'To find a specific phrase, enter it in quotes: "local storage"'
+    },
+    {
+      id: 1,
+      description: "To search within specific tag(s), enter them in square brackets: [javascript]"
+    },
+    {
+      id: 1,
+      description: 'Combine them to get even more precise results - [javascript] "local storage" searches for the phrase “local storage” in questions that have the [javascript] tag'
+    }
+  ]
+};
+const PreviewProps$3 = {
+  tips: PropDefaults$1.tips
+};
+const TemplateName$5 = "StackOverflow Tips";
+const Template$5 = ({ tips = [] }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "Stack overflow tips for searching" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsxs(Body, { style: main$5, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$2, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: logo$2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { width: 146, src: `${baseUrl$5}stack-overflow-logo.png` }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: header, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Row, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(Column, { style: headerContent, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { style: headerContentTitle, children: "Find what you want, faster" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: headerContentSubtitle, children: "Tips and tricks for searching on Stack Overflow" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Column, { style: headerImageContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { width: 340, src: `${baseUrl$5}stack-overflow-header.png` }) })
+      ] }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: content$1, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { as: "h2", style: title, children: "Searching for solutions" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$3, children: [
+          "With more than 18 million questions, it's possible that someone has already provided a solution to the problem you're facing.",
+          " "
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: divider }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { as: "h2", style: title, children: "Use the search bar at the top of the page to find what you need" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$3, children: "Here are a few simple search tips to get you started:" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { children: tips.map((tip) => /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$3, children: tip.description }) }, tip.id)) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$3, children: "The more information you can put in the search bar, the more likely you will be to either find the answer you need or feel confident that no one else has asked the question before." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: divider }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Heading, { as: "h2", style: title, children: "Take a break and read about the worst coder in the world" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: buttonContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { style: button$5, href: "https://stackoverflow.blog/2019/10/22/", children: "I need a break" }) })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: footer$2, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footerText, children: "You're receiving this email because your Stack Overflow activity triggered this tip or reminder." }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(Link$1, { href: "/", style: footerLink, children: [
+        "Unsubscribe from emails like this",
+        " "
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(Link$1, { href: "/", style: footerLink, children: [
+        "Edit email settings",
+        " "
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { href: "/", style: footerLink, children: "Contact us" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Link$1, { href: "/", style: footerLink, children: "Privacy" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: footerDivider }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { width: 111, src: `${baseUrl$5}stack-overflow-logo-sm.png` }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: footerAddress, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "Stack Overflow" }),
+        ", 110 William Street, 28th Floor, New York, NY 10038"
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footerHeart, children: "<3" })
+    ] })
+  ] })
+] });
 
 const __vite_glob_0_13 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    StackOverflowTipsEmail,
-    default: StackOverflowTipsEmail
+    PreviewProps: PreviewProps$3,
+    Template: Template$5,
+    TemplateName: TemplateName$5
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const baseUrl$4 = "https://jsx.email/assets/demo/";
-const VercelInviteUserEmail = ({
+const PreviewProps$2 = {
+  username: "batman",
+  userImage: `${baseUrl$4}batman-adam.jpg`,
+  invitedByUsername: "joker",
+  invitedByEmail: "joker@arkham.com",
+  teamName: "Batmobile",
+  teamImage: `${baseUrl$4}vercel-team.png`,
+  inviteLink: "https://vercel.com/teams/invite/foo",
+  inviteFromIp: "123.45.678.910",
+  inviteFromLocation: "Gotham City"
+};
+const TemplateName$4 = "Vercel Invite User";
+const Template$4 = ({
   username,
   userImage,
   invitedByUsername,
@@ -31038,49 +31185,14 @@ const VercelInviteUserEmail = ({
     ] }) }) })
   ] });
 };
-VercelInviteUserEmail.PreviewProps = {
-  username: "batman",
-  userImage: `${baseUrl$4}batman-adam.jpg`,
-  invitedByUsername: "joker",
-  invitedByEmail: "joker@arkham.com",
-  teamName: "Batmobile",
-  teamImage: `${baseUrl$4}vercel-team.png`,
-  inviteLink: "https://vercel.com/teams/invite/foo",
-  inviteFromIp: "123.45.678.910",
-  inviteFromLocation: "Gotham City"
-};
 
 const __vite_glob_0_14 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    VercelInviteUserEmail,
-    default: VercelInviteUserEmail
+    PreviewProps: PreviewProps$2,
+    Template: Template$4,
+    TemplateName: TemplateName$4
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$3 = "https://jsx.email/assets/demo/";
-const KoalaWelcomeEmail = ({ userFirstname }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "The sales intelligence platform that helps you uncover qualified leads." }),
-  /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$4, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$1, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$3}koala-logo.png`, width: "170", height: "50", alt: "Koala", style: logo$1 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$2, children: [
-      "Hi ",
-      userFirstname,
-      ","
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$2, children: "Welcome to Koala, the sales intelligence platform that helps you uncover qualified leads and close deals faster." }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: btnContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { style: button$4, href: "https://getkoala.com", children: "Get started" }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$2, children: [
-      "Best,",
-      /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
-      "The Koala team"
-    ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: hr$1 }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$1, children: "408 Warren Rd - San Mateo, CA 94402" })
-  ] }) })
-] });
-KoalaWelcomeEmail.PreviewProps = {
-  userFirstname: "Bruce"
-};
 const main$4 = {
   backgroundColor: "#ffffff",
   fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
@@ -31117,14 +31229,40 @@ const footer$1 = {
   color: "#8898aa",
   fontSize: "12px"
 };
+const baseUrl$3 = "https://jsx.email/assets/demo/";
+const PreviewProps$1 = {
+  userFirstname: "Bruce"
+};
+const TemplateName$3 = "Koala Welcome";
+const Template$3 = ({ userFirstname }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "The sales intelligence platform that helps you uncover qualified leads." }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$4, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Container, { style: container$1, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Img, { src: `${baseUrl$3}koala-logo.png`, width: "170", height: "50", alt: "Koala", style: logo$1 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$2, children: [
+      "Hi ",
+      userFirstname,
+      ","
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: paragraph$2, children: "Welcome to Koala, the sales intelligence platform that helps you uncover qualified leads and close deals faster." }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { style: btnContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { style: button$4, href: "https://getkoala.com", children: "Get started" }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(Text, { style: paragraph$2, children: [
+      "Best,",
+      /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
+      "The Koala team"
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Hr, { style: hr$1 }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer$1, children: "408 Warren Rd - San Mateo, CA 94402" })
+  ] }) })
+] });
 
 const __vite_glob_0_15 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    KoalaWelcomeEmail,
-    default: KoalaWelcomeEmail
+    PreviewProps: PreviewProps$1,
+    Template: Template$3,
+    TemplateName: TemplateName$3
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl$2 = "https://jsx.email/assets/demo/";
 const PropDefaults = {
   steps: [
     {
@@ -31167,7 +31305,9 @@ const PropDefaults = {
   ],
   links: ["Visit the forums", "Read the docs", "Contact an expert"]
 };
-const NetlifyWelcomeEmail = ({
+const baseUrl$2 = "https://jsx.email/assets/demo/";
+const TemplateName$2 = "Netlify Welcome";
+const Template$2 = ({
   steps = PropDefaults.steps,
   links = PropDefaults.links
 }) => {
@@ -31232,12 +31372,56 @@ const NetlifyWelcomeEmail = ({
 
 const __vite_glob_0_16 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    NetlifyWelcomeEmail,
-    default: NetlifyWelcomeEmail
+    Template: Template$2,
+    TemplateName: TemplateName$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const main$3 = {
+  backgroundColor: "#f6f9fc",
+  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif'
+};
+const container = {
+  backgroundColor: "#ffffff",
+  margin: "0 auto",
+  padding: "20px 0 48px",
+  marginBottom: "64px"
+};
+const box = {
+  padding: "0 48px"
+};
+const hr = {
+  borderColor: "#e6ebf1",
+  margin: "20px 0"
+};
+const paragraph$1 = {
+  color: "#525f7f",
+  fontSize: "16px",
+  lineHeight: "24px",
+  textAlign: "left"
+};
+const anchor = {
+  color: "#556cd6"
+};
+const button$3 = {
+  backgroundColor: "#656ee8",
+  borderRadius: "5px",
+  color: "#fff",
+  fontSize: "16px",
+  fontWeight: "bold",
+  textDecoration: "none",
+  textAlign: "center",
+  display: "block",
+  width: "100%",
+  padding: "10px"
+};
+const footer = {
+  color: "#8898aa",
+  fontSize: "12px",
+  lineHeight: "16px"
+};
 const baseUrl$1 = "https://jsx.email/assets/demo/";
-const StripeWelcomeEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
+const TemplateName$1 = "Stripe Welcome";
+const Template$1 = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx(Head, {}),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Preview$1, { children: "You're now ready to make live transactions with Stripe!" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx(Body, { style: main$3, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Container, { style: container, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Section, { style: box, children: [
@@ -31282,57 +31466,13 @@ const StripeWelcomeEmail = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(Html, { 
     /* @__PURE__ */ jsxRuntimeExports.jsx(Text, { style: footer, children: "Stripe, 354 Oyster Point Blvd, South San Francisco, CA 94080" })
   ] }) }) })
 ] });
-const main$3 = {
-  backgroundColor: "#f6f9fc",
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif'
-};
-const container = {
-  backgroundColor: "#ffffff",
-  margin: "0 auto",
-  padding: "20px 0 48px",
-  marginBottom: "64px"
-};
-const box = {
-  padding: "0 48px"
-};
-const hr = {
-  borderColor: "#e6ebf1",
-  margin: "20px 0"
-};
-const paragraph$1 = {
-  color: "#525f7f",
-  fontSize: "16px",
-  lineHeight: "24px",
-  textAlign: "left"
-};
-const anchor = {
-  color: "#556cd6"
-};
-const button$3 = {
-  backgroundColor: "#656ee8",
-  borderRadius: "5px",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "bold",
-  textDecoration: "none",
-  textAlign: "center",
-  display: "block",
-  width: "100%",
-  padding: "10px"
-};
-const footer = {
-  color: "#8898aa",
-  fontSize: "12px",
-  lineHeight: "16px"
-};
 
 const __vite_glob_0_17 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    StripeWelcomeEmail,
-    default: StripeWelcomeEmail
+    Template: Template$1,
+    TemplateName: TemplateName$1
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const baseUrl = "https://jsx.email/assets/demo/";
 const main$2 = {
   backgroundColor: "#fff",
   fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
@@ -31368,7 +31508,16 @@ const boxInfos = {
 const containerImageFooter = {
   padding: "45px 0 0 0"
 };
-const YelpRecentLoginEmail = ({
+const baseUrl = "https://jsx.email/assets/demo/";
+const PreviewProps = {
+  userFirstName: "Bruce",
+  loginDate: /* @__PURE__ */ new Date("September 7, 2022, 10:58 am"),
+  loginDevice: "Chrome on Mac OS X",
+  loginLocation: "Gotham City, United States",
+  loginIp: "12.345.67.891"
+};
+const TemplateName = "Yelp Recent Login";
+const Template = ({
   userFirstName,
   loginDate,
   loginDevice,
@@ -31460,18 +31609,12 @@ const YelpRecentLoginEmail = ({
     ] }) })
   ] });
 };
-YelpRecentLoginEmail.PreviewProps = {
-  userFirstName: "Bruce",
-  loginDate: /* @__PURE__ */ new Date("September 7, 2022, 10:58 am"),
-  loginDevice: "Chrome on Mac OS X",
-  loginLocation: "Gotham City, United States",
-  loginIp: "12.345.67.891"
-};
 
 const __vite_glob_0_18 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
     __proto__: null,
-    YelpRecentLoginEmail,
-    default: YelpRecentLoginEmail
+    PreviewProps,
+    Template,
+    TemplateName
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const __vite_glob_1_0 = `import {
@@ -31496,6 +31639,14 @@ interface AirbnbReviewEmailProps {
 }
 
 const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  authorName: 'Joker',
+  authorImage: \`\${baseUrl}batman-twilight.jpg\`,
+  reviewText: \`"Batsy's stay at my Airbnb Batcave was a riot! Batman surprised with a hidden sense of humor, engaging in epic banter and a prank war. His detective skills impressed, and the Batcave remained spotless. Game night and snacks were a hit, and even during downtime, he couldn't resist a Bat-signal. Hosting Batsy was chaos perfected – if you want a guest with brooding intensity and unexpected laughter, Batman's your Bat. Hahahahahahahahahaha! "\`
+} as AirbnbReviewEmailProps;
+
+export const TemplateName = 'Airbnb Review';
 
 const main = {
   backgroundColor: '#ffffff',
@@ -31570,11 +31721,7 @@ const footer = {
   marginBottom: '10px'
 };
 
-export const AirbnbReviewEmail = ({
-  authorName,
-  authorImage,
-  reviewText
-}: AirbnbReviewEmailProps) => {
+export const Template = ({ authorName, authorImage, reviewText }: AirbnbReviewEmailProps) => {
   const previewText = \`Read \${authorName}'s review\`;
 
   return (
@@ -31643,14 +31790,6 @@ export const AirbnbReviewEmail = ({
     </Html>
   );
 };
-
-AirbnbReviewEmail.PreviewProps = {
-  authorName: 'Joker',
-  authorImage: \`\${baseUrl}batman-twilight.jpg\`,
-  reviewText: \`"Batsy's stay at my Airbnb Batcave was a riot! Batman surprised with a hidden sense of humor, engaging in epic banter and a prank war. His detective skills impressed, and the Batcave remained spotless. Game night and snacks were a hit, and even during downtime, he couldn't resist a Bat-signal. Hosting Batsy was chaos perfected – if you want a guest with brooding intensity and unexpected laughter, Batman's your Bat. Hahahahahahahahahaha! "\`
-} as AirbnbReviewEmailProps;
-
-export default AirbnbReviewEmail;
 `;
 
 const __vite_glob_1_1 = `import {
@@ -31885,7 +32024,9 @@ const walletLinkText = {
   textDecoration: 'none'
 };
 
-export const AppleReceiptEmail = () => (
+export const TemplateName = 'Apple Receipt';
+
+export const Template = () => (
   <Html>
     <Head />
     <Preview>Apple Receipt</Preview>
@@ -32128,8 +32269,6 @@ export const AppleReceiptEmail = () => (
     </Body>
   </Html>
 );
-
-export default AppleReceiptEmail;
 `;
 
 const __vite_glob_1_2 = `import {
@@ -32147,188 +32286,6 @@ const __vite_glob_1_2 = `import {
   Text,
   Row
 } from 'jsx-email';
-import * as React from 'react';
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const CodepenChallengersEmail = () => (
-  <Html>
-    <Head />
-    <Preview>#CodePenChallenge: Cubes</Preview>
-    <Body style={main}>
-      <Section style={header}>
-        <Img
-          style={imgHeader}
-          src={\`\${baseUrl}codepen-challengers.png\`}
-          width={600}
-          alt="codepen"
-        />
-      </Section>
-      <Container style={container}>
-        <Text style={challengeLink}>
-          <Link style={link}>View this Challenge on CodePen</Link>
-        </Text>
-
-        <Heading style={heading}>
-          <strong>This week:</strong> #CodePenChallenge: <Text style={cubeText}>Cubes</Text>
-        </Heading>
-
-        <Section style={section}>
-          <Text style={text}>The Shape challenge continues!</Text>
-
-          <Text style={text}>
-            Last week, we kicked things off with round shapes. We "rounded" up the Pens from week
-            one in our <Link style={blueLink}>#CodePenChallenge: Round</Link> collection.
-          </Text>
-
-          <Text style={text}>This week, we move on to cubes 🧊</Text>
-
-          <Text style={text}>
-            Creating cubes in the browser is all about mastery of illusion. Take control of
-            perspective and shadows and you can make the magic of 3D on a flat screen 🧙
-          </Text>
-
-          <Text style={text}>
-            This week is a fun chance to work on your CSS shape-building skills, or dig into a 3D
-            JavaScript library like Three.js.
-          </Text>
-
-          <Text style={text}>
-            This week's starter template features an ice cube emoji to help inspire a "cool" idea
-            for your Pen. As always, the template is just as jumping off point. Feel free to
-            incorporate the 🧊 in your creation, add more elements, or freeze it out completely and
-            start over from scratch!
-          </Text>
-
-          <Text style={yourChallenge}>
-            💪 <strong>Your Challenge:</strong>{' '}
-            <Link style={blueLink}>create a Pen that includes cube shapes.</Link>
-          </Text>
-
-          <Img src={\`\${baseUrl}codepen-cube.png\`} width={600} alt="codepen" />
-
-          <Section style={sectionPro}>
-            <Img style={imagePro} src={\`\${baseUrl}codepen-pro.png\`} width={250} alt="codepen" />
-
-            <Text>
-              CodePen PRO combines a bunch of features that can help any front-end designer or
-              developer at any experience level.
-            </Text>
-
-            <Button style={button}>
-              <strong>Learn More</strong>
-            </Button>
-          </Section>
-        </Section>
-
-        <Text style={yellowSection}>
-          <strong>To participate:</strong> <Link style={blueLink}>Create a Pen →</Link> and tag it{' '}
-          <Link style={blueLink}>
-            <strong>codepenchallenge</strong>
-          </Link>{' '}
-          and
-          <Link style={blueLink}>
-            {' '}
-            <strong>cpc-cubes</strong>
-          </Link>
-          . We'll be watching and gathering the Pens into a Collection, and sharing on{' '}
-          <Link style={blueLink}>Twitter</Link> and <Link style={blueLink}>Instagram</Link> (Use the
-          #CodePenChallenge tag on Twitter and Instagram as well).
-        </Text>
-
-        <Section style={section}>
-          <Row>
-            <Column style={ideas}>
-              <Text style={ideasTitle}>IDEAS!</Text>
-
-              <Section style={yellowCard}>
-                🌟
-                <Text style={textCard}>
-                  This week we move from 2 dimensions to three! Maybe you could exercise your{' '}
-                  <Link style={blueLink}>perspective</Link> in CSS to create a 3D cube. Or, you can
-                  try out creating 3D shapes in JavaScript, using{' '}
-                  <Link style={blueLink}>WebGL</Link> or building a{' '}
-                  <Link style={blueLink}>Three.js scene</Link>.
-                </Text>
-              </Section>
-
-              <Section style={yellowCard}>
-                🌟
-                <Text style={textCard}>
-                  There's more to cubes than just six square sides. There are variations on the cube
-                  that could be fun to play with this week:{' '}
-                  <Link style={blueLink}>cuboid shapes</Link> are hexahedrons with faces that aren't
-                  always squares. And if you want to really push the boundaries of shape, consider
-                  the 4 dimensional <Link style={blueLink}>tesseract!</Link>
-                </Text>
-              </Section>
-
-              <Section style={yellowCard}>
-                🌟
-                <Text style={textCard}>
-                  Here's a mind-bending idea that can combine the round shapes from week one with
-                  this week's cube theme: <Link style={blueLink}>Spherical Cubes</Link> 😳 Solving
-                  longstanding mathematical mysteries is probably outside the scope of a CodePen
-                  challenge, but you could use front-end tools to explore fitting spheres into
-                  cubes, or vice-versa.
-                </Text>
-              </Section>
-            </Column>
-            <Column style={resources}>
-              <Text style={resourcesTitle}>RESOURCES!</Text>
-
-              <Section style={blueCard}>
-                📖
-                <Text style={textCard}>
-                  Learn all about <Link style={blueLink}>How CSS Perspective Works</Link> and how to
-                  build a 3D CSS cube from scratch in Amit Sheen's in-depth tutorial for CSS-Tricks.
-                  Or, check out stunning examples of WebGL cubes from Matthias Hurrle:{' '}
-                  <Link style={blueLink}>Just Ice</Link> and <Link style={blueLink}>Posing</Link>.
-                </Text>
-              </Section>
-
-              <Section style={blueCard}>
-                📖
-                <Text style={textCard}>
-                  Want to go beyond the square cube? Draw inspiration from EntropyReversed's{' '}
-                  <Link style={blueLink}>Pulsating Tesseract</Link>, Josetxu's{' '}
-                  <Link style={blueLink}>Rainbow Cuboid Loader</Link>, or Ana Tudor's{' '}
-                  <Link style={blueLink}>Pure CSS cuboid jellyfish</Link>.
-                </Text>
-              </Section>
-
-              <Section style={blueCard}>
-                📖
-                <Text style={textCard}>
-                  Did that spherical cubes concept pique your interest? Explore Ryan Mulligan's{' '}
-                  <Link style={blueLink}>Cube Sphere</Link>, Munir Safi's{' '}
-                  <Link style={blueLink}>3D Sphere to Cube Animation With Virtual Trackball</Link>{' '}
-                  and Ana Tudor's <Link style={blueLink}>Infinitely unpack prism</Link> for more
-                  mindbending cube concepts that test the boundaries of how shapes interact with
-                  each other.
-                </Text>
-              </Section>
-            </Column>
-          </Row>
-        </Section>
-
-        <Section style={goToChallenge}>
-          <Button style={footerButton}>Go to Challenge Page</Button>
-        </Section>
-
-        <Section style={footer}>
-          <Text style={footerText}>
-            You can adjust your <Link style={footerLink}>email preferences</Link> any time, or{' '}
-            <Link style={footerLink}>instantly opt out</Link> of emails of this kind. Need help with
-            anything? Hit up <Link style={footerLink}>support</Link>.
-          </Text>
-        </Section>
-      </Container>
-    </Body>
-  </Html>
-);
-
-export default CodepenChallengersEmail;
 
 const main = {
   fontFamily: '"Google Sans",Roboto,RobotoDraft,Helvetica,Arial,sans-serif',
@@ -32515,6 +32472,187 @@ const footerLink = {
   color: '#505050',
   cursor: 'pointer'
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const TemplateName = 'Codepen Challengers';
+
+export const Template = () => (
+  <Html>
+    <Head />
+    <Preview>#CodePenChallenge: Cubes</Preview>
+    <Body style={main}>
+      <Section style={header}>
+        <Img
+          style={imgHeader}
+          src={\`\${baseUrl}codepen-challengers.png\`}
+          width={600}
+          alt="codepen"
+        />
+      </Section>
+      <Container style={container}>
+        <Text style={challengeLink}>
+          <Link style={link}>View this Challenge on CodePen</Link>
+        </Text>
+
+        <Heading style={heading}>
+          <strong>This week:</strong> #CodePenChallenge: <Text style={cubeText}>Cubes</Text>
+        </Heading>
+
+        <Section style={section}>
+          <Text style={text}>The Shape challenge continues!</Text>
+
+          <Text style={text}>
+            Last week, we kicked things off with round shapes. We "rounded" up the Pens from week
+            one in our <Link style={blueLink}>#CodePenChallenge: Round</Link> collection.
+          </Text>
+
+          <Text style={text}>This week, we move on to cubes 🧊</Text>
+
+          <Text style={text}>
+            Creating cubes in the browser is all about mastery of illusion. Take control of
+            perspective and shadows and you can make the magic of 3D on a flat screen 🧙
+          </Text>
+
+          <Text style={text}>
+            This week is a fun chance to work on your CSS shape-building skills, or dig into a 3D
+            JavaScript library like Three.js.
+          </Text>
+
+          <Text style={text}>
+            This week's starter template features an ice cube emoji to help inspire a "cool" idea
+            for your Pen. As always, the template is just as jumping off point. Feel free to
+            incorporate the 🧊 in your creation, add more elements, or freeze it out completely and
+            start over from scratch!
+          </Text>
+
+          <Text style={yourChallenge}>
+            💪 <strong>Your Challenge:</strong>{' '}
+            <Link style={blueLink}>create a Pen that includes cube shapes.</Link>
+          </Text>
+
+          <Img src={\`\${baseUrl}codepen-cube.png\`} width={600} alt="codepen" />
+
+          <Section style={sectionPro}>
+            <Img style={imagePro} src={\`\${baseUrl}codepen-pro.png\`} width={250} alt="codepen" />
+
+            <Text>
+              CodePen PRO combines a bunch of features that can help any front-end designer or
+              developer at any experience level.
+            </Text>
+
+            <Button style={button}>
+              <strong>Learn More</strong>
+            </Button>
+          </Section>
+        </Section>
+
+        <Text style={yellowSection}>
+          <strong>To participate:</strong> <Link style={blueLink}>Create a Pen →</Link> and tag it{' '}
+          <Link style={blueLink}>
+            <strong>codepenchallenge</strong>
+          </Link>{' '}
+          and
+          <Link style={blueLink}>
+            {' '}
+            <strong>cpc-cubes</strong>
+          </Link>
+          . We'll be watching and gathering the Pens into a Collection, and sharing on{' '}
+          <Link style={blueLink}>Twitter</Link> and <Link style={blueLink}>Instagram</Link> (Use the
+          #CodePenChallenge tag on Twitter and Instagram as well).
+        </Text>
+
+        <Section style={section}>
+          <Row>
+            <Column style={ideas}>
+              <Text style={ideasTitle}>IDEAS!</Text>
+
+              <Section style={yellowCard}>
+                🌟
+                <Text style={textCard}>
+                  This week we move from 2 dimensions to three! Maybe you could exercise your{' '}
+                  <Link style={blueLink}>perspective</Link> in CSS to create a 3D cube. Or, you can
+                  try out creating 3D shapes in JavaScript, using{' '}
+                  <Link style={blueLink}>WebGL</Link> or building a{' '}
+                  <Link style={blueLink}>Three.js scene</Link>.
+                </Text>
+              </Section>
+
+              <Section style={yellowCard}>
+                🌟
+                <Text style={textCard}>
+                  There's more to cubes than just six square sides. There are variations on the cube
+                  that could be fun to play with this week:{' '}
+                  <Link style={blueLink}>cuboid shapes</Link> are hexahedrons with faces that aren't
+                  always squares. And if you want to really push the boundaries of shape, consider
+                  the 4 dimensional <Link style={blueLink}>tesseract!</Link>
+                </Text>
+              </Section>
+
+              <Section style={yellowCard}>
+                🌟
+                <Text style={textCard}>
+                  Here's a mind-bending idea that can combine the round shapes from week one with
+                  this week's cube theme: <Link style={blueLink}>Spherical Cubes</Link> 😳 Solving
+                  longstanding mathematical mysteries is probably outside the scope of a CodePen
+                  challenge, but you could use front-end tools to explore fitting spheres into
+                  cubes, or vice-versa.
+                </Text>
+              </Section>
+            </Column>
+            <Column style={resources}>
+              <Text style={resourcesTitle}>RESOURCES!</Text>
+
+              <Section style={blueCard}>
+                📖
+                <Text style={textCard}>
+                  Learn all about <Link style={blueLink}>How CSS Perspective Works</Link> and how to
+                  build a 3D CSS cube from scratch in Amit Sheen's in-depth tutorial for CSS-Tricks.
+                  Or, check out stunning examples of WebGL cubes from Matthias Hurrle:{' '}
+                  <Link style={blueLink}>Just Ice</Link> and <Link style={blueLink}>Posing</Link>.
+                </Text>
+              </Section>
+
+              <Section style={blueCard}>
+                📖
+                <Text style={textCard}>
+                  Want to go beyond the square cube? Draw inspiration from EntropyReversed's{' '}
+                  <Link style={blueLink}>Pulsating Tesseract</Link>, Josetxu's{' '}
+                  <Link style={blueLink}>Rainbow Cuboid Loader</Link>, or Ana Tudor's{' '}
+                  <Link style={blueLink}>Pure CSS cuboid jellyfish</Link>.
+                </Text>
+              </Section>
+
+              <Section style={blueCard}>
+                📖
+                <Text style={textCard}>
+                  Did that spherical cubes concept pique your interest? Explore Ryan Mulligan's{' '}
+                  <Link style={blueLink}>Cube Sphere</Link>, Munir Safi's{' '}
+                  <Link style={blueLink}>3D Sphere to Cube Animation With Virtual Trackball</Link>{' '}
+                  and Ana Tudor's <Link style={blueLink}>Infinitely unpack prism</Link> for more
+                  mindbending cube concepts that test the boundaries of how shapes interact with
+                  each other.
+                </Text>
+              </Section>
+            </Column>
+          </Row>
+        </Section>
+
+        <Section style={goToChallenge}>
+          <Button style={footerButton}>Go to Challenge Page</Button>
+        </Section>
+
+        <Section style={footer}>
+          <Text style={footerText}>
+            You can adjust your <Link style={footerLink}>email preferences</Link> any time, or{' '}
+            <Link style={footerLink}>instantly opt out</Link> of emails of this kind. Need help with
+            anything? Hit up <Link style={footerLink}>support</Link>.
+          </Text>
+        </Section>
+      </Container>
+    </Body>
+  </Html>
+);
 `;
 
 const __vite_glob_1_3 = `import { Body, Button, Container, Head, Html, Img, Link, Preview, Section, Text } from 'jsx-email';
@@ -32523,54 +32661,6 @@ interface DropboxResetPasswordEmailProps {
   userFirstname?: string;
   resetPasswordLink?: string;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const DropboxResetPasswordEmail = ({
-  userFirstname,
-  resetPasswordLink
-}: DropboxResetPasswordEmailProps) => {
-  return (
-    <Html>
-      <Head />
-      <Preview>Dropbox reset your password</Preview>
-      <Body style={main}>
-        <Container style={container}>
-          <Img src={\`\${baseUrl}dropbox-logo.png\`} width="40" height="33" alt="Dropbox" />
-          <Section>
-            <Text style={text}>Hi {userFirstname},</Text>
-            <Text style={text}>
-              Someone recently requested a password change for your Dropbox account. If this was
-              you, you can set a new password here:
-            </Text>
-            <Button style={button} href={resetPasswordLink}>
-              Reset password
-            </Button>
-            <Text style={text}>
-              If you don&apos;t want to change your password or didn&apos;t request this, just
-              ignore and delete this message.
-            </Text>
-            <Text style={text}>
-              To keep your account secure, please don&apos;t forward this email to anyone. See our
-              Help Center for{' '}
-              <Link style={anchor} href="https://dropbox.com">
-                more security tips.
-              </Link>
-            </Text>
-            <Text style={text}>Happy Dropboxing!</Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
-  );
-};
-
-DropboxResetPasswordEmail.PreviewProps = {
-  userFirstname: 'Bruce',
-  resetPasswordLink: 'https://dropbox.com'
-} as DropboxResetPasswordEmailProps;
-
-export default DropboxResetPasswordEmail;
 
 const main = {
   backgroundColor: '#f6f9fc',
@@ -32608,58 +32698,58 @@ const button = {
 const anchor = {
   textDecoration: 'underline'
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  userFirstname: 'Bruce',
+  resetPasswordLink: 'https://dropbox.com'
+} as DropboxResetPasswordEmailProps;
+
+export const TemplateName = 'Dropbox Reset Password';
+
+export const Template = ({ userFirstname, resetPasswordLink }: DropboxResetPasswordEmailProps) => {
+  return (
+    <Html>
+      <Head />
+      <Preview>Dropbox reset your password</Preview>
+      <Body style={main}>
+        <Container style={container}>
+          <Img src={\`\${baseUrl}dropbox-logo.png\`} width="40" height="33" alt="Dropbox" />
+          <Section>
+            <Text style={text}>Hi {userFirstname},</Text>
+            <Text style={text}>
+              Someone recently requested a password change for your Dropbox account. If this was
+              you, you can set a new password here:
+            </Text>
+            <Button style={button} href={resetPasswordLink}>
+              Reset password
+            </Button>
+            <Text style={text}>
+              If you don&apos;t want to change your password or didn&apos;t request this, just
+              ignore and delete this message.
+            </Text>
+            <Text style={text}>
+              To keep your account secure, please don&apos;t forward this email to anyone. See our
+              Help Center for{' '}
+              <Link style={anchor} href="https://dropbox.com">
+                more security tips.
+              </Link>
+            </Text>
+            <Text style={text}>Happy Dropboxing!</Text>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
+};
 `;
 
 const __vite_glob_1_4 = `import { Body, Button, Container, Head, Html, Img, Link, Preview, Section, Text } from 'jsx-email';
-import * as React from 'react';
 
 interface GithubAccessTokenEmailProps {
   username?: string;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const GithubAccessTokenEmail = ({ username }: GithubAccessTokenEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>A fine-grained personal access token has been added to your account</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}github.png\`} width="32" height="32" alt="Github" />
-
-        <Text style={title}>
-          <strong>@{username}</strong>, a personal access was created on your account.
-        </Text>
-
-        <Section style={section}>
-          <Text style={text}>
-            Hey <strong>{username}</strong>!
-          </Text>
-          <Text style={text}>
-            A fine-grained personal access token (<Link>resend</Link>) was recently added to your
-            account.
-          </Text>
-
-          <Button style={button}>View your token</Button>
-        </Section>
-        <Text style={links}>
-          <Link style={link}>Your security audit log</Link> ・{' '}
-          <Link style={link}>Contact support</Link>
-        </Text>
-
-        <Text style={footer}>
-          GitHub, Inc. ・88 Colin P Kelly Jr Street ・San Francisco, CA 94107
-        </Text>
-      </Container>
-    </Body>
-  </Html>
-);
-
-GithubAccessTokenEmail.PreviewProps = {
-  username: 'Batman'
-} as GithubAccessTokenEmailProps;
-
-export default GithubAccessTokenEmail;
 
 const main = {
   backgroundColor: '#ffffff',
@@ -32715,6 +32805,50 @@ const footer = {
   textAlign: 'center' as const,
   marginTop: '60px'
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  username: 'Batman'
+} as GithubAccessTokenEmailProps;
+
+export const TemplateName = 'Github Access Token';
+
+export const Template = ({ username }: GithubAccessTokenEmailProps) => (
+  <Html>
+    <Head />
+    <Preview>A fine-grained personal access token has been added to your account</Preview>
+    <Body style={main}>
+      <Container style={container}>
+        <Img src={\`\${baseUrl}github.png\`} width="32" height="32" alt="Github" />
+
+        <Text style={title}>
+          <strong>@{username}</strong>, a personal access was created on your account.
+        </Text>
+
+        <Section style={section}>
+          <Text style={text}>
+            Hey <strong>{username}</strong>!
+          </Text>
+          <Text style={text}>
+            A fine-grained personal access token (<Link>resend</Link>) was recently added to your
+            account.
+          </Text>
+
+          <Button style={button}>View your token</Button>
+        </Section>
+        <Text style={links}>
+          <Link style={link}>Your security audit log</Link> ・{' '}
+          <Link style={link}>Contact support</Link>
+        </Text>
+
+        <Text style={footer}>
+          GitHub, Inc. ・88 Colin P Kelly Jr Street ・San Francisco, CA 94107
+        </Text>
+      </Container>
+    </Body>
+  </Html>
+);
 `;
 
 const __vite_glob_1_5 = `import {
@@ -32735,41 +32869,6 @@ const __vite_glob_1_5 = `import {
 interface LinearLoginCodeEmailProps {
   validationCode?: string;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const LinearLoginCodeEmail = ({ validationCode }: LinearLoginCodeEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Your login code for Linear</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}linear-logo.png\`} width="42" height="42" alt="Linear" style={logo} />
-        <Heading style={heading}>Your login code for Linear</Heading>
-        <Section style={buttonContainer}>
-          <Button style={button} href="https://linear.app">
-            Login to Linear
-          </Button>
-        </Section>
-        <Text style={paragraph}>
-          This link and code will only be valid for the next 5 minutes. If the link does not work,
-          you can use the login verification code directly:
-        </Text>
-        <code style={code}>{validationCode}</code>
-        <Hr style={hr} />
-        <Link href="https://linear.app" style={reportLink}>
-          Linear
-        </Link>
-      </Container>
-    </Body>
-  </Html>
-);
-
-LinearLoginCodeEmail.PreviewProps = {
-  validationCode: 'tt226-5398x'
-} as LinearLoginCodeEmailProps;
-
-export default LinearLoginCodeEmail;
 
 const logo = {
   borderRadius: 21,
@@ -32841,6 +32940,41 @@ const code = {
   borderRadius: '4px',
   color: '#3c4149'
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  validationCode: 'tt226-5398x'
+} as LinearLoginCodeEmailProps;
+
+export const TemplateName = 'Linear Login Code';
+
+export const Template = ({ validationCode }: LinearLoginCodeEmailProps) => (
+  <Html>
+    <Head />
+    <Preview>Your login code for Linear</Preview>
+    <Body style={main}>
+      <Container style={container}>
+        <Img src={\`\${baseUrl}linear-logo.png\`} width="42" height="42" alt="Linear" style={logo} />
+        <Heading style={heading}>Your login code for Linear</Heading>
+        <Section style={buttonContainer}>
+          <Button style={button} href="https://linear.app">
+            Login to Linear
+          </Button>
+        </Section>
+        <Text style={paragraph}>
+          This link and code will only be valid for the next 5 minutes. If the link does not work,
+          you can use the login verification code directly:
+        </Text>
+        <code style={code}>{validationCode}</code>
+        <Hr style={hr} />
+        <Link href="https://linear.app" style={reportLink}>
+          Linear
+        </Link>
+      </Container>
+    </Body>
+  </Html>
+);
 `;
 
 const __vite_glob_1_6 = `import { Body, Container, Head, Heading, Html, Img, Link, Preview, Text } from 'jsx-email';
@@ -32848,70 +32982,6 @@ const __vite_glob_1_6 = `import { Body, Container, Head, Heading, Html, Img, Lin
 interface NotionMagicLinkEmailProps {
   loginCode?: string;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const NotionMagicLinkEmail = ({ loginCode }: NotionMagicLinkEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Log in with this magic link</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Heading style={h1}>Login</Heading>
-        <Link
-          href="https://notion.so"
-          target="_blank"
-          style={{
-            ...link,
-            display: 'block',
-            marginBottom: '16px'
-          }}
-        >
-          Click here to log in with this magic link
-        </Link>
-        <Text style={{ ...text, marginBottom: '14px' }}>
-          Or, copy and paste this temporary login code:
-        </Text>
-        <code style={code}>{loginCode}</code>
-        <Text
-          style={{
-            ...text,
-            color: '#ababab',
-            marginTop: '14px',
-            marginBottom: '16px'
-          }}
-        >
-          If you didn&apos;t try to login, you can safely ignore this email.
-        </Text>
-        <Text
-          style={{
-            ...text,
-            color: '#ababab',
-            marginTop: '12px',
-            marginBottom: '38px'
-          }}
-        >
-          Hint: You can set a permanent password in Settings & members → My account.
-        </Text>
-        <Img src={\`\${baseUrl}notion-logo.png\`} width="32" height="32" alt="Notion's Logo" />
-        <Text style={footer}>
-          <Link href="https://notion.so" target="_blank" style={{ ...link, color: '#898989' }}>
-            Notion.so
-          </Link>
-          , the all-in-one-workspace
-          <br />
-          for your notes, tasks, wikis, and databases.
-        </Text>
-      </Container>
-    </Body>
-  </Html>
-);
-
-NotionMagicLinkEmail.PreviewProps = {
-  loginCode: 'sparo-ndigo-amurt-secan'
-} as NotionMagicLinkEmailProps;
-
-export default NotionMagicLinkEmail;
 
 const main = {
   backgroundColor: '#ffffff'
@@ -32968,6 +33038,70 @@ const code = {
   border: '1px solid #eee',
   color: '#333'
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  loginCode: 'sparo-ndigo-amurt-secan'
+} as NotionMagicLinkEmailProps;
+
+export const TemplateName = 'Notion Magic Link';
+
+export const Template = ({ loginCode }: NotionMagicLinkEmailProps) => (
+  <Html>
+    <Head />
+    <Preview>Log in with this magic link</Preview>
+    <Body style={main}>
+      <Container style={container}>
+        <Heading style={h1}>Login</Heading>
+        <Link
+          href="https://notion.so"
+          target="_blank"
+          style={{
+            ...link,
+            display: 'block',
+            marginBottom: '16px'
+          }}
+        >
+          Click here to log in with this magic link
+        </Link>
+        <Text style={{ ...text, marginBottom: '14px' }}>
+          Or, copy and paste this temporary login code:
+        </Text>
+        <code style={code}>{loginCode}</code>
+        <Text
+          style={{
+            ...text,
+            color: '#ababab',
+            marginTop: '14px',
+            marginBottom: '16px'
+          }}
+        >
+          If you didn&apos;t try to login, you can safely ignore this email.
+        </Text>
+        <Text
+          style={{
+            ...text,
+            color: '#ababab',
+            marginTop: '12px',
+            marginBottom: '38px'
+          }}
+        >
+          Hint: You can set a permanent password in Settings & members → My account.
+        </Text>
+        <Img src={\`\${baseUrl}notion-logo.png\`} width="32" height="32" alt="Notion's Logo" />
+        <Text style={footer}>
+          <Link href="https://notion.so" target="_blank" style={{ ...link, color: '#898989' }}>
+            Notion.so
+          </Link>
+          , the all-in-one-workspace
+          <br />
+          for your notes, tasks, wikis, and databases.
+        </Text>
+      </Container>
+    </Body>
+  </Html>
+);
 `;
 
 const __vite_glob_1_7 = `import {
@@ -32983,57 +33117,10 @@ const __vite_glob_1_7 = `import {
   Section,
   Text
 } from 'jsx-email';
-import * as React from 'react';
 
 interface RaycastMagicLinkEmailProps {
   magicLink?: string;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const RaycastMagicLinkEmail = ({ magicLink }: RaycastMagicLinkEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Log in with this magic link.</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}raycast-logo.png\`} width={48} height={48} alt="Raycast" />
-        <Heading style={heading}>🪄 Your magic link</Heading>
-        <Section style={body}>
-          <Text style={paragraph}>
-            <Link style={link} href={magicLink}>
-              👉 Click here to sign in 👈
-            </Link>
-          </Text>
-          <Text style={paragraph}>If you didn't request this, please ignore this email.</Text>
-        </Section>
-        <Text style={paragraph}>
-          Best,
-          <br />- Raycast Team
-        </Text>
-        <Hr style={hr} />
-        <Img
-          src={\`\${baseUrl}raycast-logo.png\`}
-          width={32}
-          height={32}
-          style={{
-            WebkitFilter: 'grayscale(100%)',
-            filter: 'grayscale(100%)',
-            margin: '20px 0'
-          }}
-        />
-        <Text style={footer}>Raycast Technologies Inc.</Text>
-        <Text style={footer}>2093 Philadelphia Pike #3222, Claymont, DE 19703</Text>
-      </Container>
-    </Body>
-  </Html>
-);
-
-RaycastMagicLinkEmail.PreviewProps = {
-  magicLink: 'https://raycast.com'
-} as RaycastMagicLinkEmailProps;
-
-export default RaycastMagicLinkEmail;
 
 const main = {
   backgroundColor: '#ffffff',
@@ -33078,6 +33165,52 @@ const footer = {
   fontSize: '12px',
   marginLeft: '4px'
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  magicLink: 'https://raycast.com'
+} as RaycastMagicLinkEmailProps;
+
+export const TemplateName = 'Raycast Magic Link';
+
+export const Template = ({ magicLink }: RaycastMagicLinkEmailProps) => (
+  <Html>
+    <Head />
+    <Preview>Log in with this magic link.</Preview>
+    <Body style={main}>
+      <Container style={container}>
+        <Img src={\`\${baseUrl}raycast-logo.png\`} width={48} height={48} alt="Raycast" />
+        <Heading style={heading}>🪄 Your magic link</Heading>
+        <Section style={body}>
+          <Text style={paragraph}>
+            <Link style={link} href={magicLink}>
+              👉 Click here to sign in 👈
+            </Link>
+          </Text>
+          <Text style={paragraph}>If you didn't request this, please ignore this email.</Text>
+        </Section>
+        <Text style={paragraph}>
+          Best,
+          <br />- Raycast Team
+        </Text>
+        <Hr style={hr} />
+        <Img
+          src={\`\${baseUrl}raycast-logo.png\`}
+          width={32}
+          height={32}
+          style={{
+            WebkitFilter: 'grayscale(100%)',
+            filter: 'grayscale(100%)',
+            margin: '20px 0'
+          }}
+        />
+        <Text style={footer}>Raycast Technologies Inc.</Text>
+        <Text style={footer}>2093 Philadelphia Pike #3222, Claymont, DE 19703</Text>
+      </Container>
+    </Body>
+  </Html>
+);
 `;
 
 const __vite_glob_1_8 = `import {
@@ -33098,8 +33231,6 @@ interface TwitchResetPasswordEmailProps {
   username?: string;
   updatedDate?: Date;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
 
 const fontFamily = 'HelveticaNeue,Helvetica,Arial,sans-serif';
 
@@ -33154,10 +33285,16 @@ const link = {
   textDecoration: 'underline'
 };
 
-export const TwitchResetPasswordEmail = ({
-  username,
-  updatedDate
-}: TwitchResetPasswordEmailProps) => {
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  username: 'Batman',
+  updatedDate: new Date('June 23, 2022 4:06:00 pm UTC')
+} as TwitchResetPasswordEmailProps;
+
+export const TemplateName = 'Twitch Reset Password';
+
+export const Template = ({ username, updatedDate }: TwitchResetPasswordEmailProps) => {
   const formattedDate = new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',
     timeStyle: 'medium'
@@ -33233,13 +33370,6 @@ export const TwitchResetPasswordEmail = ({
     </Html>
   );
 };
-
-TwitchResetPasswordEmail.PreviewProps = {
-  username: 'Batman',
-  updatedDate: new Date('June 23, 2022 4:06:00 pm UTC')
-} as TwitchResetPasswordEmailProps;
-
-export default TwitchResetPasswordEmail;
 `;
 
 const __vite_glob_1_9 = `import {
@@ -33256,11 +33386,73 @@ const __vite_glob_1_9 = `import {
   Section,
   Text
 } from 'jsx-email';
-import * as React from 'react';
+
+const main = {
+  backgroundColor: '#dbddde',
+  fontFamily:
+    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
+};
+
+const sectionLogo = {
+  padding: '0 40px'
+};
+
+const headerBlue = {
+  marginTop: '-1px'
+};
+
+const container = {
+  margin: '30px auto',
+  width: '610px',
+  backgroundColor: '#fff',
+  borderRadius: 5,
+  overflow: 'hidden'
+};
+
+const containerContact = {
+  backgroundColor: '#f0fcff',
+  width: '90%',
+  borderRadius: '5px',
+  overflow: 'hidden',
+  paddingLeft: '20px'
+};
+
+const heading = {
+  fontSize: '14px',
+  lineHeight: '26px',
+  fontWeight: '700',
+  color: '#004dcf'
+};
+
+const paragraphContent = {
+  padding: '0 40px'
+};
+
+const paragraphList = {
+  paddingLeft: 40
+};
+
+const paragraph = {
+  fontSize: '14px',
+  lineHeight: '22px',
+  color: '#3c4043'
+};
+
+const link = {
+  ...paragraph,
+  color: '#004dcf'
+};
+
+const hr = {
+  borderColor: '#e8eaed',
+  margin: '20px 0'
+};
 
 const baseUrl = 'https://jsx.email/assets/demo/';
 
-export const GooglePlayPolicyUpdateEmail = () => (
+export const TemplateName = 'Google Play Policy Update';
+
+export const Template = () => (
   <Html>
     <Head />
     <Preview>Google Play developers</Preview>
@@ -33395,69 +33587,6 @@ export const GooglePlayPolicyUpdateEmail = () => (
     </Body>
   </Html>
 );
-
-export default GooglePlayPolicyUpdateEmail;
-
-const main = {
-  backgroundColor: '#dbddde',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const sectionLogo = {
-  padding: '0 40px'
-};
-
-const headerBlue = {
-  marginTop: '-1px'
-};
-
-const container = {
-  margin: '30px auto',
-  width: '610px',
-  backgroundColor: '#fff',
-  borderRadius: 5,
-  overflow: 'hidden'
-};
-
-const containerContact = {
-  backgroundColor: '#f0fcff',
-  width: '90%',
-  borderRadius: '5px',
-  overflow: 'hidden',
-  paddingLeft: '20px'
-};
-
-const heading = {
-  fontSize: '14px',
-  lineHeight: '26px',
-  fontWeight: '700',
-  color: '#004dcf'
-};
-
-const paragraphContent = {
-  padding: '0 40px'
-};
-
-const paragraphList = {
-  paddingLeft: 40
-};
-
-const paragraph = {
-  fontSize: '14px',
-  lineHeight: '22px',
-  color: '#3c4043'
-};
-
-const link = {
-  ...paragraph,
-  color: '#004dcf'
-};
-
-const hr = {
-  borderColor: '#e8eaed',
-  margin: '20px 0'
-};
 `;
 
 const __vite_glob_1_10 = `import {
@@ -33475,11 +33604,182 @@ const __vite_glob_1_10 = `import {
   Section,
   Text
 } from 'jsx-email';
-import * as React from 'react';
+
+const paddingX = {
+  paddingLeft: '40px',
+  paddingRight: '40px'
+};
+
+const paddingY = {
+  paddingTop: '22px',
+  paddingBottom: '22px'
+};
+
+const paragraph = {
+  margin: '0',
+  lineHeight: '2'
+};
+
+const global = {
+  paddingX,
+  paddingY,
+  defaultPadding: {
+    ...paddingX,
+    ...paddingY
+  },
+  paragraphWithBold: { ...paragraph, fontWeight: 'bold' },
+  heading: {
+    fontSize: '32px',
+    lineHeight: '1.3',
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: '-1px'
+  } as React.CSSProperties,
+  text: {
+    ...paragraph,
+    color: '#747474',
+    fontWeight: '500'
+  },
+  button: {
+    border: '1px solid #929292',
+    fontSize: '16px',
+    textDecoration: 'none',
+    padding: '10px 0px',
+    width: '220px',
+    display: 'block',
+    textAlign: 'center',
+    fontWeight: 500,
+    color: '#000'
+  } as React.CSSProperties,
+  hr: {
+    borderColor: '#E5E5E5',
+    margin: '0'
+  }
+};
+
+const main = {
+  backgroundColor: '#ffffff',
+  fontFamily:
+    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
+};
+
+const container = {
+  margin: '10px auto',
+  width: '600px',
+  border: '1px solid #E5E5E5'
+};
+
+const track = {
+  container: {
+    padding: '22px 40px',
+    backgroundColor: '#F7F7F7'
+  },
+  number: {
+    margin: '12px 0 0 0',
+    fontWeight: 500,
+    lineHeight: '1.4',
+    color: '#6F6F6F'
+  }
+};
+
+const message = {
+  padding: '40px 74px',
+  textAlign: 'center'
+} as React.CSSProperties;
+
+const adressTitle = {
+  ...paragraph,
+  fontSize: '15px',
+  fontWeight: 'bold'
+};
+
+const recomendationsText = {
+  margin: '0',
+  fontSize: '15px',
+  lineHeight: '1',
+  paddingLeft: '10px',
+  paddingRight: '10px'
+};
+
+const recomendations = {
+  container: {
+    padding: '20px 0'
+  },
+  product: {
+    verticalAlign: 'top',
+    textAlign: 'left' as const,
+    paddingLeft: '2px',
+    paddingRight: '2px'
+  },
+  title: { ...recomendationsText, paddingTop: '12px', fontWeight: '500' },
+  text: {
+    ...recomendationsText,
+    paddingTop: '4px',
+    color: '#747474'
+  }
+};
+
+const menu = {
+  container: {
+    paddingLeft: '20px',
+    paddingRight: '20px',
+    paddingTop: '20px',
+    backgroundColor: '#F7F7F7'
+  },
+  content: {
+    ...paddingY,
+    paddingLeft: '20px',
+    paddingRight: '20px'
+  },
+  title: {
+    paddingLeft: '20px',
+    paddingRight: '20px',
+    fontWeight: 'bold'
+  },
+  text: {
+    fontSize: '13.5px',
+    marginTop: 0,
+    fontWeight: 500,
+    color: '#000'
+  },
+  tel: {
+    paddingLeft: '20px',
+    paddingRight: '20px',
+    paddingTop: '32px',
+    paddingBottom: '22px'
+  }
+};
+
+const categories = {
+  container: {
+    width: '370px',
+    margin: 'auto',
+    paddingTop: '12px'
+  },
+  text: {
+    fontWeight: '500',
+    color: '#000'
+  }
+};
+
+const footer = {
+  policy: {
+    width: '166px',
+    margin: 'auto'
+  },
+  text: {
+    margin: '0',
+    color: '#AFAFAF',
+    fontSize: '13px',
+    textAlign: 'center'
+  } as React.CSSProperties
+};
 
 const baseUrl = 'https://jsx.email/assets/demo/';
 
-export const NikeReceiptEmail = () => (
+export const TemplateName = 'Nike Receipt';
+
+export const Template = () => (
   <Html>
     <Head />
     <Preview>Get your order summary, estimated delivery date and more</Preview>
@@ -33725,219 +34025,13 @@ export const NikeReceiptEmail = () => (
     </Body>
   </Html>
 );
-
-export default NikeReceiptEmail;
-
-const paddingX = {
-  paddingLeft: '40px',
-  paddingRight: '40px'
-};
-
-const paddingY = {
-  paddingTop: '22px',
-  paddingBottom: '22px'
-};
-
-const paragraph = {
-  margin: '0',
-  lineHeight: '2'
-};
-
-const global = {
-  paddingX,
-  paddingY,
-  defaultPadding: {
-    ...paddingX,
-    ...paddingY
-  },
-  paragraphWithBold: { ...paragraph, fontWeight: 'bold' },
-  heading: {
-    fontSize: '32px',
-    lineHeight: '1.3',
-    fontWeight: '700',
-    textAlign: 'center',
-    letterSpacing: '-1px'
-  } as React.CSSProperties,
-  text: {
-    ...paragraph,
-    color: '#747474',
-    fontWeight: '500'
-  },
-  button: {
-    border: '1px solid #929292',
-    fontSize: '16px',
-    textDecoration: 'none',
-    padding: '10px 0px',
-    width: '220px',
-    display: 'block',
-    textAlign: 'center',
-    fontWeight: 500,
-    color: '#000'
-  } as React.CSSProperties,
-  hr: {
-    borderColor: '#E5E5E5',
-    margin: '0'
-  }
-};
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const container = {
-  margin: '10px auto',
-  width: '600px',
-  border: '1px solid #E5E5E5'
-};
-
-const track = {
-  container: {
-    padding: '22px 40px',
-    backgroundColor: '#F7F7F7'
-  },
-  number: {
-    margin: '12px 0 0 0',
-    fontWeight: 500,
-    lineHeight: '1.4',
-    color: '#6F6F6F'
-  }
-};
-
-const message = {
-  padding: '40px 74px',
-  textAlign: 'center'
-} as React.CSSProperties;
-
-const adressTitle = {
-  ...paragraph,
-  fontSize: '15px',
-  fontWeight: 'bold'
-};
-
-const recomendationsText = {
-  margin: '0',
-  fontSize: '15px',
-  lineHeight: '1',
-  paddingLeft: '10px',
-  paddingRight: '10px'
-};
-
-const recomendations = {
-  container: {
-    padding: '20px 0'
-  },
-  product: {
-    verticalAlign: 'top',
-    textAlign: 'left' as const,
-    paddingLeft: '2px',
-    paddingRight: '2px'
-  },
-  title: { ...recomendationsText, paddingTop: '12px', fontWeight: '500' },
-  text: {
-    ...recomendationsText,
-    paddingTop: '4px',
-    color: '#747474'
-  }
-};
-
-const menu = {
-  container: {
-    paddingLeft: '20px',
-    paddingRight: '20px',
-    paddingTop: '20px',
-    backgroundColor: '#F7F7F7'
-  },
-  content: {
-    ...paddingY,
-    paddingLeft: '20px',
-    paddingRight: '20px'
-  },
-  title: {
-    paddingLeft: '20px',
-    paddingRight: '20px',
-    fontWeight: 'bold'
-  },
-  text: {
-    fontSize: '13.5px',
-    marginTop: 0,
-    fontWeight: 500,
-    color: '#000'
-  },
-  tel: {
-    paddingLeft: '20px',
-    paddingRight: '20px',
-    paddingTop: '32px',
-    paddingBottom: '22px'
-  }
-};
-
-const categories = {
-  container: {
-    width: '370px',
-    margin: 'auto',
-    paddingTop: '12px'
-  },
-  text: {
-    fontWeight: '500',
-    color: '#000'
-  }
-};
-
-const footer = {
-  policy: {
-    width: '166px',
-    margin: 'auto'
-  },
-  text: {
-    margin: '0',
-    color: '#AFAFAF',
-    fontSize: '13px',
-    textAlign: 'center'
-  } as React.CSSProperties
-};
 `;
 
 const __vite_glob_1_11 = `import { Body, Container, Head, Heading, Html, Img, Link, Section, Text } from 'jsx-email';
-import * as React from 'react';
 
 interface PlaidVerifyIdentityEmailProps {
   validationCode?: string;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const PlaidVerifyIdentityEmail = ({ validationCode }: PlaidVerifyIdentityEmailProps) => (
-  <Html>
-    <Head />
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}plaid-logo.png\`} width="212" height="88" alt="Plaid" style={logo} />
-        <Text style={tertiary}>Verify Your Identity</Text>
-        <Heading style={secondary}>Enter the following code to finish linking Venmo.</Heading>
-        <Section style={codeContainer}>
-          <Text style={code}>{validationCode}</Text>
-        </Section>
-        <Text style={paragraph}>Not expecting this email?</Text>
-        <Text style={paragraph}>
-          Contact{' '}
-          <Link href="mailto:login@plaid.com" style={link}>
-            login@plaid.com
-          </Link>{' '}
-          if you did not request this code.
-        </Text>
-      </Container>
-      <Text style={footer}>Securely powered by Plaid.</Text>
-    </Body>
-  </Html>
-);
-
-PlaidVerifyIdentityEmail.PreviewProps = {
-  validationCode: '144833'
-} as PlaidVerifyIdentityEmailProps;
-
-export default PlaidVerifyIdentityEmail;
 
 const main = {
   backgroundColor: '#ffffff',
@@ -34035,6 +34129,39 @@ const footer = {
   textAlign: 'center' as const,
   textTransform: 'uppercase' as const
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  validationCode: '144833'
+} as PlaidVerifyIdentityEmailProps;
+
+export const TemplateName = 'Plaid Verify Identity';
+
+export const Template = ({ validationCode }: PlaidVerifyIdentityEmailProps) => (
+  <Html>
+    <Head />
+    <Body style={main}>
+      <Container style={container}>
+        <Img src={\`\${baseUrl}plaid-logo.png\`} width="212" height="88" alt="Plaid" style={logo} />
+        <Text style={tertiary}>Verify Your Identity</Text>
+        <Heading style={secondary}>Enter the following code to finish linking Venmo.</Heading>
+        <Section style={codeContainer}>
+          <Text style={code}>{validationCode}</Text>
+        </Section>
+        <Text style={paragraph}>Not expecting this email?</Text>
+        <Text style={paragraph}>
+          Contact{' '}
+          <Link href="mailto:login@plaid.com" style={link}>
+            login@plaid.com
+          </Link>{' '}
+          if you did not request this code.
+        </Text>
+      </Container>
+      <Text style={footer}>Securely powered by Plaid.</Text>
+    </Body>
+  </Html>
+);
 `;
 
 const __vite_glob_1_12 = `import {
@@ -34055,8 +34182,6 @@ const __vite_glob_1_12 = `import {
 interface SlackConfirmEmailProps {
   validationCode?: string;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
 
 const footerText = {
   fontSize: '12px',
@@ -34134,7 +34259,15 @@ const text = {
   lineHeight: '24px'
 };
 
-export const SlackConfirmEmail = ({ validationCode }: SlackConfirmEmailProps) => (
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  validationCode: 'DJZ-TLX'
+} as SlackConfirmEmailProps;
+
+export const TemplateName = 'Slack Confirm';
+
+export const Template = ({ validationCode }: SlackConfirmEmailProps) => (
   <Html>
     <Head />
     <Preview>Confirm your email address</Preview>
@@ -34254,12 +34387,6 @@ export const SlackConfirmEmail = ({ validationCode }: SlackConfirmEmailProps) =>
     </Body>
   </Html>
 );
-
-SlackConfirmEmail.PreviewProps = {
-  validationCode: 'DJZ-TLX'
-} as SlackConfirmEmailProps;
-
-export default SlackConfirmEmail;
 `;
 
 const __vite_glob_1_13 = `import {
@@ -34277,135 +34404,10 @@ const __vite_glob_1_13 = `import {
   Text,
   Row
 } from 'jsx-email';
-import * as React from 'react';
 
 interface StackOverflowTipsEmailProps {
   tips?: { id: number; description: string }[];
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-const PropDefaults: StackOverflowTipsEmailProps = {
-  tips: [
-    {
-      id: 1,
-      description: 'To find a specific phrase, enter it in quotes: "local storage"'
-    },
-    {
-      id: 1,
-      description: 'To search within specific tag(s), enter them in square brackets: [javascript]'
-    },
-    {
-      id: 1,
-      description:
-        'Combine them to get even more precise results - [javascript] "local storage" searches for the phrase “local storage” in questions that have the [javascript] tag'
-    }
-  ]
-};
-
-export const StackOverflowTipsEmail = ({ tips = [] }: StackOverflowTipsEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Stack overflow tips for searching</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Section style={logo}>
-          <Img width={146} src={\`\${baseUrl}stack-overflow-logo.png\`} />
-        </Section>
-
-        <Section style={header}>
-          <Row>
-            <Column style={headerContent}>
-              <Heading style={headerContentTitle}>Find what you want, faster</Heading>
-              <Text style={headerContentSubtitle}>
-                Tips and tricks for searching on Stack Overflow
-              </Text>
-            </Column>
-            <Column style={headerImageContainer}>
-              <Img width={340} src={\`\${baseUrl}stack-overflow-header.png\`} />
-            </Column>
-          </Row>
-        </Section>
-
-        <Section style={content}>
-          <Heading as="h2" style={title}>
-            Searching for solutions
-          </Heading>
-          <Text style={paragraph}>
-            With more than 18 million questions, it's possible that someone has already provided a
-            solution to the problem you're facing.{' '}
-          </Text>
-
-          <Hr style={divider} />
-
-          <Heading as="h2" style={title}>
-            Use the search bar at the top of the page to find what you need
-          </Heading>
-          <Text style={paragraph}>Here are a few simple search tips to get you started:</Text>
-          <ul>
-            {tips.map((tip) => (
-              <li key={tip.id}>
-                <Text style={paragraph}>{tip.description}</Text>
-              </li>
-            ))}
-          </ul>
-
-          <Text style={paragraph}>
-            The more information you can put in the search bar, the more likely you will be to
-            either find the answer you need or feel confident that no one else has asked the
-            question before.
-          </Text>
-
-          <Hr style={divider} />
-
-          <Heading as="h2" style={title}>
-            Take a break and read about the worst coder in the world
-          </Heading>
-
-          <Section style={buttonContainer}>
-            <Link style={button} href="https://stackoverflow.blog/2019/10/22/">
-              I need a break
-            </Link>
-          </Section>
-        </Section>
-      </Container>
-
-      <Section style={footer}>
-        <Text style={footerText}>
-          You're receiving this email because your Stack Overflow activity triggered this tip or
-          reminder.
-        </Text>
-
-        <Link href="/" style={footerLink}>
-          Unsubscribe from emails like this{' '}
-        </Link>
-        <Link href="/" style={footerLink}>
-          Edit email settings{' '}
-        </Link>
-        <Link href="/" style={footerLink}>
-          Contact us
-        </Link>
-        <Link href="/" style={footerLink}>
-          Privacy
-        </Link>
-
-        <Hr style={footerDivider} />
-
-        <Img width={111} src={\`\${baseUrl}stack-overflow-logo-sm.png\`} />
-        <Text style={footerAddress}>
-          <strong>Stack Overflow</strong>, 110 William Street, 28th Floor, New York, NY 10038
-        </Text>
-        <Text style={footerHeart}>{'<3'}</Text>
-      </Section>
-    </Body>
-  </Html>
-);
-
-StackOverflowTipsEmail.PreviewProps = {
-  tips: PropDefaults.tips
-} as StackOverflowTipsEmailProps;
-
-export default StackOverflowTipsEmail;
 
 const main = {
   backgroundColor: '#f3f3f5',
@@ -34534,6 +34536,130 @@ const footerHeart = {
   maxWidth: 'min-content',
   margin: '0 0 32px 0'
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+const PropDefaults: StackOverflowTipsEmailProps = {
+  tips: [
+    {
+      id: 1,
+      description: 'To find a specific phrase, enter it in quotes: "local storage"'
+    },
+    {
+      id: 1,
+      description: 'To search within specific tag(s), enter them in square brackets: [javascript]'
+    },
+    {
+      id: 1,
+      description:
+        'Combine them to get even more precise results - [javascript] "local storage" searches for the phrase “local storage” in questions that have the [javascript] tag'
+    }
+  ]
+};
+
+export const PreviewProps = {
+  tips: PropDefaults.tips
+} as StackOverflowTipsEmailProps;
+
+export const TemplateName = 'StackOverflow Tips';
+
+export const Template = ({ tips = [] }: StackOverflowTipsEmailProps) => (
+  <Html>
+    <Head />
+    <Preview>Stack overflow tips for searching</Preview>
+    <Body style={main}>
+      <Container style={container}>
+        <Section style={logo}>
+          <Img width={146} src={\`\${baseUrl}stack-overflow-logo.png\`} />
+        </Section>
+
+        <Section style={header}>
+          <Row>
+            <Column style={headerContent}>
+              <Heading style={headerContentTitle}>Find what you want, faster</Heading>
+              <Text style={headerContentSubtitle}>
+                Tips and tricks for searching on Stack Overflow
+              </Text>
+            </Column>
+            <Column style={headerImageContainer}>
+              <Img width={340} src={\`\${baseUrl}stack-overflow-header.png\`} />
+            </Column>
+          </Row>
+        </Section>
+
+        <Section style={content}>
+          <Heading as="h2" style={title}>
+            Searching for solutions
+          </Heading>
+          <Text style={paragraph}>
+            With more than 18 million questions, it's possible that someone has already provided a
+            solution to the problem you're facing.{' '}
+          </Text>
+
+          <Hr style={divider} />
+
+          <Heading as="h2" style={title}>
+            Use the search bar at the top of the page to find what you need
+          </Heading>
+          <Text style={paragraph}>Here are a few simple search tips to get you started:</Text>
+          <ul>
+            {tips.map((tip) => (
+              <li key={tip.id}>
+                <Text style={paragraph}>{tip.description}</Text>
+              </li>
+            ))}
+          </ul>
+
+          <Text style={paragraph}>
+            The more information you can put in the search bar, the more likely you will be to
+            either find the answer you need or feel confident that no one else has asked the
+            question before.
+          </Text>
+
+          <Hr style={divider} />
+
+          <Heading as="h2" style={title}>
+            Take a break and read about the worst coder in the world
+          </Heading>
+
+          <Section style={buttonContainer}>
+            <Link style={button} href="https://stackoverflow.blog/2019/10/22/">
+              I need a break
+            </Link>
+          </Section>
+        </Section>
+      </Container>
+
+      <Section style={footer}>
+        <Text style={footerText}>
+          You're receiving this email because your Stack Overflow activity triggered this tip or
+          reminder.
+        </Text>
+
+        <Link href="/" style={footerLink}>
+          Unsubscribe from emails like this{' '}
+        </Link>
+        <Link href="/" style={footerLink}>
+          Edit email settings{' '}
+        </Link>
+        <Link href="/" style={footerLink}>
+          Contact us
+        </Link>
+        <Link href="/" style={footerLink}>
+          Privacy
+        </Link>
+
+        <Hr style={footerDivider} />
+
+        <Img width={111} src={\`\${baseUrl}stack-overflow-logo-sm.png\`} />
+        <Text style={footerAddress}>
+          <strong>Stack Overflow</strong>, 110 William Street, 28th Floor, New York, NY 10038
+        </Text>
+        <Text style={footerHeart}>{'<3'}</Text>
+      </Section>
+    </Body>
+  </Html>
+);
 `;
 
 const __vite_glob_1_14 = `import {
@@ -34568,7 +34694,21 @@ interface VercelInviteUserEmailProps {
 
 const baseUrl = 'https://jsx.email/assets/demo/';
 
-export const VercelInviteUserEmail = ({
+export const PreviewProps = {
+  username: 'batman',
+  userImage: \`\${baseUrl}batman-adam.jpg\`,
+  invitedByUsername: 'joker',
+  invitedByEmail: 'joker@arkham.com',
+  teamName: 'Batmobile',
+  teamImage: \`\${baseUrl}vercel-team.png\`,
+  inviteLink: 'https://vercel.com/teams/invite/foo',
+  inviteFromIp: '123.45.678.910',
+  inviteFromLocation: 'Gotham City'
+} as VercelInviteUserEmailProps;
+
+export const TemplateName = 'Vercel Invite User';
+
+export const Template = ({
   username,
   userImage,
   invitedByUsername,
@@ -34654,65 +34794,13 @@ export const VercelInviteUserEmail = ({
     </Html>
   );
 };
-
-VercelInviteUserEmail.PreviewProps = {
-  username: 'batman',
-  userImage: \`\${baseUrl}batman-adam.jpg\`,
-  invitedByUsername: 'joker',
-  invitedByEmail: 'joker@arkham.com',
-  teamName: 'Batmobile',
-  teamImage: \`\${baseUrl}vercel-team.png\`,
-  inviteLink: 'https://vercel.com/teams/invite/foo',
-  inviteFromIp: '123.45.678.910',
-  inviteFromLocation: 'Gotham City'
-} as VercelInviteUserEmailProps;
-
-export default VercelInviteUserEmail;
 `;
 
 const __vite_glob_1_15 = `import { Body, Button, Container, Head, Hr, Html, Img, Preview, Section, Text } from 'jsx-email';
-import * as React from 'react';
 
 interface KoalaWelcomeEmailProps {
   userFirstname: string;
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const KoalaWelcomeEmail = ({ userFirstname }: KoalaWelcomeEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>The sales intelligence platform that helps you uncover qualified leads.</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}koala-logo.png\`} width="170" height="50" alt="Koala" style={logo} />
-        <Text style={paragraph}>Hi {userFirstname},</Text>
-        <Text style={paragraph}>
-          Welcome to Koala, the sales intelligence platform that helps you uncover qualified leads
-          and close deals faster.
-        </Text>
-        <Section style={btnContainer}>
-          <Button style={button} href="https://getkoala.com">
-            Get started
-          </Button>
-        </Section>
-        <Text style={paragraph}>
-          Best,
-          <br />
-          The Koala team
-        </Text>
-        <Hr style={hr} />
-        <Text style={footer}>408 Warren Rd - San Mateo, CA 94402</Text>
-      </Container>
-    </Body>
-  </Html>
-);
-
-KoalaWelcomeEmail.PreviewProps = {
-  userFirstname: 'Bruce'
-} as KoalaWelcomeEmailProps;
-
-export default KoalaWelcomeEmail;
 
 const main = {
   backgroundColor: '#ffffff',
@@ -34758,6 +34846,43 @@ const footer = {
   color: '#8898aa',
   fontSize: '12px'
 };
+
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const PreviewProps = {
+  userFirstname: 'Bruce'
+} as KoalaWelcomeEmailProps;
+
+export const TemplateName = 'Koala Welcome';
+
+export const Template = ({ userFirstname }: KoalaWelcomeEmailProps) => (
+  <Html>
+    <Head />
+    <Preview>The sales intelligence platform that helps you uncover qualified leads.</Preview>
+    <Body style={main}>
+      <Container style={container}>
+        <Img src={\`\${baseUrl}koala-logo.png\`} width="170" height="50" alt="Koala" style={logo} />
+        <Text style={paragraph}>Hi {userFirstname},</Text>
+        <Text style={paragraph}>
+          Welcome to Koala, the sales intelligence platform that helps you uncover qualified leads
+          and close deals faster.
+        </Text>
+        <Section style={btnContainer}>
+          <Button style={button} href="https://getkoala.com">
+            Get started
+          </Button>
+        </Section>
+        <Text style={paragraph}>
+          Best,
+          <br />
+          The Koala team
+        </Text>
+        <Hr style={hr} />
+        <Text style={footer}>408 Warren Rd - San Mateo, CA 94402</Text>
+      </Container>
+    </Body>
+  </Html>
+);
 `;
 
 const __vite_glob_1_16 = `import {
@@ -34785,8 +34910,6 @@ interface NetlifyWelcomeEmailProps {
   }[];
   links?: string[];
 }
-
-const baseUrl = 'https://jsx.email/assets/demo/';
 
 const PropDefaults: NetlifyWelcomeEmailProps = {
   steps: [
@@ -34831,7 +34954,11 @@ const PropDefaults: NetlifyWelcomeEmailProps = {
   links: ['Visit the forums', 'Read the docs', 'Contact an expert']
 };
 
-export const NetlifyWelcomeEmail = ({
+const baseUrl = 'https://jsx.email/assets/demo/';
+
+export const TemplateName = 'Netlify Welcome';
+
+export const Template = ({
   steps = PropDefaults.steps,
   links = PropDefaults.links
 }: NetlifyWelcomeEmailProps) => {
@@ -34918,8 +35045,6 @@ export const NetlifyWelcomeEmail = ({
     </Html>
   );
 };
-
-export default NetlifyWelcomeEmail;
 `;
 
 const __vite_glob_1_17 = `import {
@@ -34936,9 +35061,64 @@ const __vite_glob_1_17 = `import {
   Text
 } from 'jsx-email';
 
+const main = {
+  backgroundColor: '#f6f9fc',
+  fontFamily:
+    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif'
+};
+
+const container = {
+  backgroundColor: '#ffffff',
+  margin: '0 auto',
+  padding: '20px 0 48px',
+  marginBottom: '64px'
+};
+
+const box = {
+  padding: '0 48px'
+};
+
+const hr = {
+  borderColor: '#e6ebf1',
+  margin: '20px 0'
+};
+
+const paragraph = {
+  color: '#525f7f',
+
+  fontSize: '16px',
+  lineHeight: '24px',
+  textAlign: 'left' as const
+};
+
+const anchor = {
+  color: '#556cd6'
+};
+
+const button = {
+  backgroundColor: '#656ee8',
+  borderRadius: '5px',
+  color: '#fff',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'block',
+  width: '100%',
+  padding: '10px'
+};
+
+const footer = {
+  color: '#8898aa',
+  fontSize: '12px',
+  lineHeight: '16px'
+};
+
 const baseUrl = 'https://jsx.email/assets/demo/';
 
-export const StripeWelcomeEmail = () => (
+export const TemplateName = 'Stripe Welcome';
+
+export const Template = () => (
   <Html>
     <Head />
     <Preview>You're now ready to make live transactions with Stripe!</Preview>
@@ -35001,64 +35181,9 @@ export const StripeWelcomeEmail = () => (
     </Body>
   </Html>
 );
-
-export default StripeWelcomeEmail;
-
-const main = {
-  backgroundColor: '#f6f9fc',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif'
-};
-
-const container = {
-  backgroundColor: '#ffffff',
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  marginBottom: '64px'
-};
-
-const box = {
-  padding: '0 48px'
-};
-
-const hr = {
-  borderColor: '#e6ebf1',
-  margin: '20px 0'
-};
-
-const paragraph = {
-  color: '#525f7f',
-
-  fontSize: '16px',
-  lineHeight: '24px',
-  textAlign: 'left' as const
-};
-
-const anchor = {
-  color: '#556cd6'
-};
-
-const button = {
-  backgroundColor: '#656ee8',
-  borderRadius: '5px',
-  color: '#fff',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  textAlign: 'center' as const,
-  display: 'block',
-  width: '100%',
-  padding: '10px'
-};
-
-const footer = {
-  color: '#8898aa',
-  fontSize: '12px',
-  lineHeight: '16px'
-};
 `;
 
-const __vite_glob_1_18 = "import {\n  Body,\n  Button,\n  Container,\n  Column,\n  Head,\n  Heading,\n  Html,\n  Img,\n  Preview,\n  Row,\n  Section,\n  Text\n} from 'jsx-email';\n\ninterface YelpRecentLoginEmailProps {\n  userFirstName?: string;\n  loginDate?: Date;\n  loginDevice?: string;\n  loginLocation?: string;\n  loginIp?: string;\n}\n\nconst baseUrl = 'https://jsx.email/assets/demo/';\n\nconst main = {\n  backgroundColor: '#fff',\n  fontFamily:\n    '-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Oxygen-Sans,Ubuntu,Cantarell,\"Helvetica Neue\",sans-serif'\n};\n\nconst paragraph = {\n  fontSize: 16\n};\n\nconst logo = {\n  padding: '30px 20px'\n};\n\nconst containerButton = {\n  display: 'flex',\n  justifyContent: 'center',\n  width: '100%'\n};\n\nconst button = {\n  backgroundColor: '#e00707',\n  borderRadius: 3,\n  color: '#FFF',\n  fontWeight: 'bold',\n  border: '1px solid rgb(0,0,0, 0.1)',\n  cursor: 'pointer',\n  padding: '12px 30px'\n};\n\nconst content = {\n  border: '1px solid rgb(0,0,0, 0.1)',\n  borderRadius: '3px',\n  overflow: 'hidden'\n};\n\nconst boxInfos = {\n  padding: '20px 40px'\n};\n\nconst containerImageFooter = {\n  padding: '45px 0 0 0'\n};\n\nexport const YelpRecentLoginEmail = ({\n  userFirstName,\n  loginDate,\n  loginDevice,\n  loginLocation,\n  loginIp\n}: YelpRecentLoginEmailProps) => {\n  const formattedDate = new Intl.DateTimeFormat('en', {\n    dateStyle: 'long',\n    timeStyle: 'short'\n  }).format(loginDate);\n\n  return (\n    <Html>\n      <Head />\n      <Preview>Yelp recent login</Preview>\n      <Body style={main}>\n        <Container>\n          <Section style={logo}>\n            <Img src={`${baseUrl}yelp-logo.png`} />\n          </Section>\n\n          <Section style={content}>\n            <Row>\n              <Img width={620} src={`${baseUrl}yelp-header.png`} />\n            </Row>\n\n            <Row style={{ ...boxInfos, paddingBottom: '0' }}>\n              <Column>\n                <Heading\n                  style={{\n                    fontSize: 32,\n                    fontWeight: 'bold',\n                    textAlign: 'center'\n                  }}\n                >\n                  Hi {userFirstName},\n                </Heading>\n                <Heading\n                  as=\"h2\"\n                  style={{\n                    fontSize: 26,\n                    fontWeight: 'bold',\n                    textAlign: 'center'\n                  }}\n                >\n                  We noticed a recent login to your Yelp account.\n                </Heading>\n\n                <Text style={paragraph}>\n                  <b>Time: </b>\n                  {formattedDate}\n                </Text>\n                <Text style={{ ...paragraph, marginTop: -5 }}>\n                  <b>Device: </b>\n                  {loginDevice}\n                </Text>\n                <Text style={{ ...paragraph, marginTop: -5 }}>\n                  <b>Location: </b>\n                  {loginLocation}\n                </Text>\n                <Text\n                  style={{\n                    color: 'rgb(0,0,0, 0.5)',\n                    fontSize: 14,\n                    marginTop: -5\n                  }}\n                >\n                  *Approximate geographic location based on IP address:\n                  {loginIp}\n                </Text>\n\n                <Text style={paragraph}>If this was you, there's nothing else you need to do.</Text>\n                <Text style={{ ...paragraph, marginTop: -5 }}>\n                  If this wasn't you or if you have additional questions, please see our support\n                  page.\n                </Text>\n              </Column>\n            </Row>\n            <Row style={{ ...boxInfos, paddingTop: '0' }}>\n              <Column style={containerButton} colSpan={2}>\n                <Button style={button}>Learn More</Button>\n              </Column>\n            </Row>\n          </Section>\n\n          <Section style={containerImageFooter}>\n            <Img width={620} src={`${baseUrl}yelp-footer.png`} />\n          </Section>\n\n          <Text\n            style={{\n              textAlign: 'center',\n              fontSize: 12,\n              color: 'rgb(0,0,0, 0.7)'\n            }}\n          >\n            © 2022 | Yelp Inc., 350 Mission Street, San Francisco, CA 94105, U.S.A. | www.yelp.com\n          </Text>\n        </Container>\n      </Body>\n    </Html>\n  );\n};\n\nYelpRecentLoginEmail.PreviewProps = {\n  userFirstName: 'Bruce',\n  loginDate: new Date('September 7, 2022, 10:58 am'),\n  loginDevice: 'Chrome on Mac OS X',\n  loginLocation: 'Gotham City, United States',\n  loginIp: '12.345.67.891'\n} as YelpRecentLoginEmailProps;\n\nexport default YelpRecentLoginEmail;\n";
+const __vite_glob_1_18 = "import {\n  Body,\n  Button,\n  Container,\n  Column,\n  Head,\n  Heading,\n  Html,\n  Img,\n  Preview,\n  Row,\n  Section,\n  Text\n} from 'jsx-email';\n\ninterface YelpRecentLoginEmailProps {\n  userFirstName?: string;\n  loginDate?: Date;\n  loginDevice?: string;\n  loginLocation?: string;\n  loginIp?: string;\n}\n\nconst main = {\n  backgroundColor: '#fff',\n  fontFamily:\n    '-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Oxygen-Sans,Ubuntu,Cantarell,\"Helvetica Neue\",sans-serif'\n};\n\nconst paragraph = {\n  fontSize: 16\n};\n\nconst logo = {\n  padding: '30px 20px'\n};\n\nconst containerButton = {\n  display: 'flex',\n  justifyContent: 'center',\n  width: '100%'\n};\n\nconst button = {\n  backgroundColor: '#e00707',\n  borderRadius: 3,\n  color: '#FFF',\n  fontWeight: 'bold',\n  border: '1px solid rgb(0,0,0, 0.1)',\n  cursor: 'pointer',\n  padding: '12px 30px'\n};\n\nconst content = {\n  border: '1px solid rgb(0,0,0, 0.1)',\n  borderRadius: '3px',\n  overflow: 'hidden'\n};\n\nconst boxInfos = {\n  padding: '20px 40px'\n};\n\nconst containerImageFooter = {\n  padding: '45px 0 0 0'\n};\n\nconst baseUrl = 'https://jsx.email/assets/demo/';\n\nexport const PreviewProps = {\n  userFirstName: 'Bruce',\n  loginDate: new Date('September 7, 2022, 10:58 am'),\n  loginDevice: 'Chrome on Mac OS X',\n  loginLocation: 'Gotham City, United States',\n  loginIp: '12.345.67.891'\n} as YelpRecentLoginEmailProps;\n\nexport const TemplateName = 'Yelp Recent Login';\n\nexport const Template = ({\n  userFirstName,\n  loginDate,\n  loginDevice,\n  loginLocation,\n  loginIp\n}: YelpRecentLoginEmailProps) => {\n  const formattedDate = new Intl.DateTimeFormat('en', {\n    dateStyle: 'long',\n    timeStyle: 'short'\n  }).format(loginDate);\n\n  return (\n    <Html>\n      <Head />\n      <Preview>Yelp recent login</Preview>\n      <Body style={main}>\n        <Container>\n          <Section style={logo}>\n            <Img src={`${baseUrl}yelp-logo.png`} />\n          </Section>\n\n          <Section style={content}>\n            <Row>\n              <Img width={620} src={`${baseUrl}yelp-header.png`} />\n            </Row>\n\n            <Row style={{ ...boxInfos, paddingBottom: '0' }}>\n              <Column>\n                <Heading\n                  style={{\n                    fontSize: 32,\n                    fontWeight: 'bold',\n                    textAlign: 'center'\n                  }}\n                >\n                  Hi {userFirstName},\n                </Heading>\n                <Heading\n                  as=\"h2\"\n                  style={{\n                    fontSize: 26,\n                    fontWeight: 'bold',\n                    textAlign: 'center'\n                  }}\n                >\n                  We noticed a recent login to your Yelp account.\n                </Heading>\n\n                <Text style={paragraph}>\n                  <b>Time: </b>\n                  {formattedDate}\n                </Text>\n                <Text style={{ ...paragraph, marginTop: -5 }}>\n                  <b>Device: </b>\n                  {loginDevice}\n                </Text>\n                <Text style={{ ...paragraph, marginTop: -5 }}>\n                  <b>Location: </b>\n                  {loginLocation}\n                </Text>\n                <Text\n                  style={{\n                    color: 'rgb(0,0,0, 0.5)',\n                    fontSize: 14,\n                    marginTop: -5\n                  }}\n                >\n                  *Approximate geographic location based on IP address:\n                  {loginIp}\n                </Text>\n\n                <Text style={paragraph}>If this was you, there's nothing else you need to do.</Text>\n                <Text style={{ ...paragraph, marginTop: -5 }}>\n                  If this wasn't you or if you have additional questions, please see our support\n                  page.\n                </Text>\n              </Column>\n            </Row>\n            <Row style={{ ...boxInfos, paddingTop: '0' }}>\n              <Column style={containerButton} colSpan={2}>\n                <Button style={button}>Learn More</Button>\n              </Column>\n            </Row>\n          </Section>\n\n          <Section style={containerImageFooter}>\n            <Img width={620} src={`${baseUrl}yelp-footer.png`} />\n          </Section>\n\n          <Text\n            style={{\n              textAlign: 'center',\n              fontSize: 12,\n              color: 'rgb(0,0,0, 0.7)'\n            }}\n          >\n            © 2022 | Yelp Inc., 350 Mission Street, San Francisco, CA 94105, U.S.A. | www.yelp.com\n          </Text>\n        </Container>\n      </Body>\n    </Html>\n  );\n};\n";
 
 const globals = '';
 
@@ -40444,6 +40569,175 @@ const $409067139f391064$export$be92b6f5f03c0fe9 = $409067139f391064$export$6eb0f
 const $409067139f391064$export$41fb9f06171c75f4 = $409067139f391064$export$c135dce7b15bbbdc;
 const $409067139f391064$export$7c6e2c02157bb7d2 = $409067139f391064$export$aadde00976f34151;
 
+function _objectWithoutPropertiesLoose(source, excluded) {
+  if (source == null) return {};
+  var target = {};
+  var sourceKeys = Object.keys(source);
+  var key, i;
+
+  for (i = 0; i < sourceKeys.length; i++) {
+    key = sourceKeys[i];
+    if (excluded.indexOf(key) >= 0) continue;
+    target[key] = source[key];
+  }
+
+  return target;
+}
+
+var _excluded$T = ["color"];
+var CheckIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
+  var _ref$color = _ref.color,
+      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
+      props = _objectWithoutPropertiesLoose(_ref, _excluded$T);
+
+  return reactExports.createElement("svg", Object.assign({
+    width: "15",
+    height: "15",
+    viewBox: "0 0 15 15",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg"
+  }, props, {
+    ref: forwardedRef
+  }), reactExports.createElement("path", {
+    d: "M11.4669 3.72684C11.7558 3.91574 11.8369 4.30308 11.648 4.59198L7.39799 11.092C7.29783 11.2452 7.13556 11.3467 6.95402 11.3699C6.77247 11.3931 6.58989 11.3355 6.45446 11.2124L3.70446 8.71241C3.44905 8.48022 3.43023 8.08494 3.66242 7.82953C3.89461 7.57412 4.28989 7.55529 4.5453 7.78749L6.75292 9.79441L10.6018 3.90792C10.7907 3.61902 11.178 3.53795 11.4669 3.72684Z",
+    fill: color,
+    fillRule: "evenodd",
+    clipRule: "evenodd"
+  }));
+});
+
+var _excluded$W = ["color"];
+var ChevronDownIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
+  var _ref$color = _ref.color,
+      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
+      props = _objectWithoutPropertiesLoose(_ref, _excluded$W);
+
+  return reactExports.createElement("svg", Object.assign({
+    width: "15",
+    height: "15",
+    viewBox: "0 0 15 15",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg"
+  }, props, {
+    ref: forwardedRef
+  }), reactExports.createElement("path", {
+    d: "M3.13523 6.15803C3.3241 5.95657 3.64052 5.94637 3.84197 6.13523L7.5 9.56464L11.158 6.13523C11.3595 5.94637 11.6759 5.95657 11.8648 6.15803C12.0536 6.35949 12.0434 6.67591 11.842 6.86477L7.84197 10.6148C7.64964 10.7951 7.35036 10.7951 7.15803 10.6148L3.15803 6.86477C2.95657 6.67591 2.94637 6.35949 3.13523 6.15803Z",
+    fill: color,
+    fillRule: "evenodd",
+    clipRule: "evenodd"
+  }));
+});
+
+var _excluded$Z = ["color"];
+var ChevronUpIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
+  var _ref$color = _ref.color,
+      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
+      props = _objectWithoutPropertiesLoose(_ref, _excluded$Z);
+
+  return reactExports.createElement("svg", Object.assign({
+    width: "15",
+    height: "15",
+    viewBox: "0 0 15 15",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg"
+  }, props, {
+    ref: forwardedRef
+  }), reactExports.createElement("path", {
+    d: "M3.13523 8.84197C3.3241 9.04343 3.64052 9.05363 3.84197 8.86477L7.5 5.43536L11.158 8.86477C11.3595 9.05363 11.6759 9.04343 11.8648 8.84197C12.0536 8.64051 12.0434 8.32409 11.842 8.13523L7.84197 4.38523C7.64964 4.20492 7.35036 4.20492 7.15803 4.38523L3.15803 8.13523C2.95657 8.32409 2.94637 8.64051 3.13523 8.84197Z",
+    fill: color,
+    fillRule: "evenodd",
+    clipRule: "evenodd"
+  }));
+});
+
+var _excluded$1q = ["color"];
+var Cross1Icon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
+  var _ref$color = _ref.color,
+      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
+      props = _objectWithoutPropertiesLoose(_ref, _excluded$1q);
+
+  return reactExports.createElement("svg", Object.assign({
+    width: "15",
+    height: "15",
+    viewBox: "0 0 15 15",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg"
+  }, props, {
+    ref: forwardedRef
+  }), reactExports.createElement("path", {
+    d: "M12.8536 2.85355C13.0488 2.65829 13.0488 2.34171 12.8536 2.14645C12.6583 1.95118 12.3417 1.95118 12.1464 2.14645L7.5 6.79289L2.85355 2.14645C2.65829 1.95118 2.34171 1.95118 2.14645 2.14645C1.95118 2.34171 1.95118 2.65829 2.14645 2.85355L6.79289 7.5L2.14645 12.1464C1.95118 12.3417 1.95118 12.6583 2.14645 12.8536C2.34171 13.0488 2.65829 13.0488 2.85355 12.8536L7.5 8.20711L12.1464 12.8536C12.3417 13.0488 12.6583 13.0488 12.8536 12.8536C13.0488 12.6583 13.0488 12.3417 12.8536 12.1464L8.20711 7.5L12.8536 2.85355Z",
+    fill: color,
+    fillRule: "evenodd",
+    clipRule: "evenodd"
+  }));
+});
+
+var _excluded$1r = ["color"];
+var Cross2Icon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
+  var _ref$color = _ref.color,
+      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
+      props = _objectWithoutPropertiesLoose(_ref, _excluded$1r);
+
+  return reactExports.createElement("svg", Object.assign({
+    width: "15",
+    height: "15",
+    viewBox: "0 0 15 15",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg"
+  }, props, {
+    ref: forwardedRef
+  }), reactExports.createElement("path", {
+    d: "M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z",
+    fill: color,
+    fillRule: "evenodd",
+    clipRule: "evenodd"
+  }));
+});
+
+var _excluded$2s = ["color"];
+var HamburgerMenuIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
+  var _ref$color = _ref.color,
+      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
+      props = _objectWithoutPropertiesLoose(_ref, _excluded$2s);
+
+  return reactExports.createElement("svg", Object.assign({
+    width: "15",
+    height: "15",
+    viewBox: "0 0 15 15",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg"
+  }, props, {
+    ref: forwardedRef
+  }), reactExports.createElement("path", {
+    d: "M1.5 3C1.22386 3 1 3.22386 1 3.5C1 3.77614 1.22386 4 1.5 4H13.5C13.7761 4 14 3.77614 14 3.5C14 3.22386 13.7761 3 13.5 3H1.5ZM1 7.5C1 7.22386 1.22386 7 1.5 7H13.5C13.7761 7 14 7.22386 14 7.5C14 7.77614 13.7761 8 13.5 8H1.5C1.22386 8 1 7.77614 1 7.5ZM1 11.5C1 11.2239 1.22386 11 1.5 11H13.5C13.7761 11 14 11.2239 14 11.5C14 11.7761 13.7761 12 13.5 12H1.5C1.22386 12 1 11.7761 1 11.5Z",
+    fill: color,
+    fillRule: "evenodd",
+    clipRule: "evenodd"
+  }));
+});
+
+var _excluded$3A = ["color"];
+var QuestionMarkCircledIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
+  var _ref$color = _ref.color,
+      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
+      props = _objectWithoutPropertiesLoose(_ref, _excluded$3A);
+
+  return reactExports.createElement("svg", Object.assign({
+    width: "15",
+    height: "15",
+    viewBox: "0 0 15 15",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg"
+  }, props, {
+    ref: forwardedRef
+  }), reactExports.createElement("path", {
+    d: "M0.877075 7.49972C0.877075 3.84204 3.84222 0.876892 7.49991 0.876892C11.1576 0.876892 14.1227 3.84204 14.1227 7.49972C14.1227 11.1574 11.1576 14.1226 7.49991 14.1226C3.84222 14.1226 0.877075 11.1574 0.877075 7.49972ZM7.49991 1.82689C4.36689 1.82689 1.82708 4.36671 1.82708 7.49972C1.82708 10.6327 4.36689 13.1726 7.49991 13.1726C10.6329 13.1726 13.1727 10.6327 13.1727 7.49972C13.1727 4.36671 10.6329 1.82689 7.49991 1.82689ZM8.24993 10.5C8.24993 10.9142 7.91414 11.25 7.49993 11.25C7.08571 11.25 6.74993 10.9142 6.74993 10.5C6.74993 10.0858 7.08571 9.75 7.49993 9.75C7.91414 9.75 8.24993 10.0858 8.24993 10.5ZM6.05003 6.25C6.05003 5.57211 6.63511 4.925 7.50003 4.925C8.36496 4.925 8.95003 5.57211 8.95003 6.25C8.95003 6.74118 8.68002 6.99212 8.21447 7.27494C8.16251 7.30651 8.10258 7.34131 8.03847 7.37854L8.03841 7.37858C7.85521 7.48497 7.63788 7.61119 7.47449 7.73849C7.23214 7.92732 6.95003 8.23198 6.95003 8.7C6.95004 9.00376 7.19628 9.25 7.50004 9.25C7.8024 9.25 8.04778 9.00601 8.05002 8.70417L8.05056 8.7033C8.05924 8.6896 8.08493 8.65735 8.15058 8.6062C8.25207 8.52712 8.36508 8.46163 8.51567 8.37436L8.51571 8.37433C8.59422 8.32883 8.68296 8.27741 8.78559 8.21506C9.32004 7.89038 10.05 7.35382 10.05 6.25C10.05 4.92789 8.93511 3.825 7.50003 3.825C6.06496 3.825 4.95003 4.92789 4.95003 6.25C4.95003 6.55376 5.19628 6.8 5.50003 6.8C5.80379 6.8 6.05003 6.55376 6.05003 6.25Z",
+    fill: color,
+    fillRule: "evenodd",
+    clipRule: "evenodd"
+  }));
+});
+
 const Logo = reactExports.forwardRef((_, __) => /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "200", viewBox: "0 0 547 134", fill: "none", xmlns: "http://www.w3.org/2000/svg", children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx(
     "path",
@@ -40563,6 +40857,7 @@ const FileName = () => /* @__PURE__ */ jsxRuntimeExports.jsxs(
   }
 );
 const SidebarSection = ({
+  closeNav,
   templateParts,
   currentPageTitle,
   isSubSection,
@@ -40623,6 +40918,7 @@ const SidebarSection = ({
                     return isParent ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pl-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       SidebarSection,
                       {
+                        closeNav,
                         templateParts: item.children,
                         currentPageTitle,
                         title: item.name,
@@ -40634,6 +40930,7 @@ const SidebarSection = ({
                         "data-name": item.name,
                         id: isSubSection ? `${title.replace(" ", "")}-link-${item.name}` : `link-${item.name}`,
                         to: `/${item.path}`,
+                        onClick: closeNav,
                         children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
                           "span",
                           {
@@ -40666,11 +40963,23 @@ const SidebarSection = ({
   );
 };
 const Sidebar = reactExports.forwardRef(
-  ({ className, templateParts, title, ...props }, forwardedRef) => /* @__PURE__ */ jsxRuntimeExports.jsx("aside", { ref: forwardedRef, className, ...props, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "h-full p-6 w-screen md:w-full md:min-w-[275px] md:max-w-[275px] flex flex-col gap-4 border-r border-dark-bg-border", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Logo, {}),
+  ({ className, templateParts, closeNav, title, ...props }, forwardedRef) => /* @__PURE__ */ jsxRuntimeExports.jsx("aside", { ref: forwardedRef, className, ...props, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: "h-full p-6 w-screen lg:w-full lg:min-w-[275px] lg:max-w-[275px] flex flex-col gap-4 border-r border-dark-bg-border", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Logo, {}),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          onClick: closeNav,
+          className: "inlne-block lg:hidden w-5 h-5",
+          "aria-label": "Toggle nav menu",
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(Cross1Icon, { className: "w-5 h-5" })
+        }
+      )
+    ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       SidebarSection,
       {
+        closeNav,
         templateParts,
         currentPageTitle: title,
         title: "Email Templates"
@@ -40679,131 +40988,6 @@ const Sidebar = reactExports.forwardRef(
   ] }) })
 );
 Sidebar.displayName = "Sidebar";
-
-function _objectWithoutPropertiesLoose(source, excluded) {
-  if (source == null) return {};
-  var target = {};
-  var sourceKeys = Object.keys(source);
-  var key, i;
-
-  for (i = 0; i < sourceKeys.length; i++) {
-    key = sourceKeys[i];
-    if (excluded.indexOf(key) >= 0) continue;
-    target[key] = source[key];
-  }
-
-  return target;
-}
-
-var _excluded$T = ["color"];
-var CheckIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
-  var _ref$color = _ref.color,
-      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
-      props = _objectWithoutPropertiesLoose(_ref, _excluded$T);
-
-  return reactExports.createElement("svg", Object.assign({
-    width: "15",
-    height: "15",
-    viewBox: "0 0 15 15",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg"
-  }, props, {
-    ref: forwardedRef
-  }), reactExports.createElement("path", {
-    d: "M11.4669 3.72684C11.7558 3.91574 11.8369 4.30308 11.648 4.59198L7.39799 11.092C7.29783 11.2452 7.13556 11.3467 6.95402 11.3699C6.77247 11.3931 6.58989 11.3355 6.45446 11.2124L3.70446 8.71241C3.44905 8.48022 3.43023 8.08494 3.66242 7.82953C3.89461 7.57412 4.28989 7.55529 4.5453 7.78749L6.75292 9.79441L10.6018 3.90792C10.7907 3.61902 11.178 3.53795 11.4669 3.72684Z",
-    fill: color,
-    fillRule: "evenodd",
-    clipRule: "evenodd"
-  }));
-});
-
-var _excluded$W = ["color"];
-var ChevronDownIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
-  var _ref$color = _ref.color,
-      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
-      props = _objectWithoutPropertiesLoose(_ref, _excluded$W);
-
-  return reactExports.createElement("svg", Object.assign({
-    width: "15",
-    height: "15",
-    viewBox: "0 0 15 15",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg"
-  }, props, {
-    ref: forwardedRef
-  }), reactExports.createElement("path", {
-    d: "M3.13523 6.15803C3.3241 5.95657 3.64052 5.94637 3.84197 6.13523L7.5 9.56464L11.158 6.13523C11.3595 5.94637 11.6759 5.95657 11.8648 6.15803C12.0536 6.35949 12.0434 6.67591 11.842 6.86477L7.84197 10.6148C7.64964 10.7951 7.35036 10.7951 7.15803 10.6148L3.15803 6.86477C2.95657 6.67591 2.94637 6.35949 3.13523 6.15803Z",
-    fill: color,
-    fillRule: "evenodd",
-    clipRule: "evenodd"
-  }));
-});
-
-var _excluded$Z = ["color"];
-var ChevronUpIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
-  var _ref$color = _ref.color,
-      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
-      props = _objectWithoutPropertiesLoose(_ref, _excluded$Z);
-
-  return reactExports.createElement("svg", Object.assign({
-    width: "15",
-    height: "15",
-    viewBox: "0 0 15 15",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg"
-  }, props, {
-    ref: forwardedRef
-  }), reactExports.createElement("path", {
-    d: "M3.13523 8.84197C3.3241 9.04343 3.64052 9.05363 3.84197 8.86477L7.5 5.43536L11.158 8.86477C11.3595 9.05363 11.6759 9.04343 11.8648 8.84197C12.0536 8.64051 12.0434 8.32409 11.842 8.13523L7.84197 4.38523C7.64964 4.20492 7.35036 4.20492 7.15803 4.38523L3.15803 8.13523C2.95657 8.32409 2.94637 8.64051 3.13523 8.84197Z",
-    fill: color,
-    fillRule: "evenodd",
-    clipRule: "evenodd"
-  }));
-});
-
-var _excluded$1r = ["color"];
-var Cross2Icon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
-  var _ref$color = _ref.color,
-      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
-      props = _objectWithoutPropertiesLoose(_ref, _excluded$1r);
-
-  return reactExports.createElement("svg", Object.assign({
-    width: "15",
-    height: "15",
-    viewBox: "0 0 15 15",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg"
-  }, props, {
-    ref: forwardedRef
-  }), reactExports.createElement("path", {
-    d: "M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z",
-    fill: color,
-    fillRule: "evenodd",
-    clipRule: "evenodd"
-  }));
-});
-
-var _excluded$3A = ["color"];
-var QuestionMarkCircledIcon = /*#__PURE__*/reactExports.forwardRef(function (_ref, forwardedRef) {
-  var _ref$color = _ref.color,
-      color = _ref$color === void 0 ? 'currentColor' : _ref$color,
-      props = _objectWithoutPropertiesLoose(_ref, _excluded$3A);
-
-  return reactExports.createElement("svg", Object.assign({
-    width: "15",
-    height: "15",
-    viewBox: "0 0 15 15",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg"
-  }, props, {
-    ref: forwardedRef
-  }), reactExports.createElement("path", {
-    d: "M0.877075 7.49972C0.877075 3.84204 3.84222 0.876892 7.49991 0.876892C11.1576 0.876892 14.1227 3.84204 14.1227 7.49972C14.1227 11.1574 11.1576 14.1226 7.49991 14.1226C3.84222 14.1226 0.877075 11.1574 0.877075 7.49972ZM7.49991 1.82689C4.36689 1.82689 1.82708 4.36671 1.82708 7.49972C1.82708 10.6327 4.36689 13.1726 7.49991 13.1726C10.6329 13.1726 13.1727 10.6327 13.1727 7.49972C13.1727 4.36671 10.6329 1.82689 7.49991 1.82689ZM8.24993 10.5C8.24993 10.9142 7.91414 11.25 7.49993 11.25C7.08571 11.25 6.74993 10.9142 6.74993 10.5C6.74993 10.0858 7.08571 9.75 7.49993 9.75C7.91414 9.75 8.24993 10.0858 8.24993 10.5ZM6.05003 6.25C6.05003 5.57211 6.63511 4.925 7.50003 4.925C8.36496 4.925 8.95003 5.57211 8.95003 6.25C8.95003 6.74118 8.68002 6.99212 8.21447 7.27494C8.16251 7.30651 8.10258 7.34131 8.03847 7.37854L8.03841 7.37858C7.85521 7.48497 7.63788 7.61119 7.47449 7.73849C7.23214 7.92732 6.95003 8.23198 6.95003 8.7C6.95004 9.00376 7.19628 9.25 7.50004 9.25C7.8024 9.25 8.04778 9.00601 8.05002 8.70417L8.05056 8.7033C8.05924 8.6896 8.08493 8.65735 8.15058 8.6062C8.25207 8.52712 8.36508 8.46163 8.51567 8.37436L8.51571 8.37433C8.59422 8.32883 8.68296 8.27741 8.78559 8.21506C9.32004 7.89038 10.05 7.35382 10.05 6.25C10.05 4.92789 8.93511 3.825 7.50003 3.825C6.06496 3.825 4.95003 4.92789 4.95003 6.25C4.95003 6.55376 5.19628 6.8 5.50003 6.8C5.80379 6.8 6.05003 6.55376 6.05003 6.25Z",
-    fill: color,
-    fillRule: "evenodd",
-    clipRule: "evenodd"
-  }));
-});
 
 /**
  * Listens for when the escape key is down
@@ -54099,79 +54283,113 @@ const NavButton = ({ activeView, addClassNames, label }) => /* @__PURE__ */ jsxR
 NavButton.displayName = "NavButton";
 
 const Nav = reactExports.forwardRef(
-  ({ className, title, markup, activeView, setActiveView, ...props }, forwardedRef) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
-    "header",
-    {
-      ref: forwardedRef,
-      className: classnames(
-        "bg-dark-bg flex relative items-center px-6 justify-between h-[70px] border-b border-dark-bg-border",
-        className
-      ),
-      ...props,
-      children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `items-center overflow-hidden hidden lg:flex`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-base font-bold truncate text", children: title }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs($cb5cc270b50c6fcd$export$be92b6f5f03c0fe9, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$41fb9f06171c75f4, { asChild: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+  ({ className, title, markup, activeView, setActiveView, openNav, ...props }, forwardedRef) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "header",
+      {
+        ref: forwardedRef,
+        className: classnames(
+          "bg-dark-bg flex relative items-center px-6 justify-between h-[70px] border-b border-dark-bg-border",
+          className
+        ),
+        ...props,
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               "button",
               {
-                className: "align-top h-[20px] w-[20px] pt-[9px] mr-4",
-                "aria-label": "Preview Information",
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(QuestionMarkCircledIcon, { className: "h-[20px] w-[20px]" })
+                onClick: openNav,
+                className: "inlne-block lg:hidden w-5 h-5",
+                "aria-label": "Toggle nav menu",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(HamburgerMenuIcon, { className: "h-5 w-5" })
               }
-            ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$602eac185826482c, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs($cb5cc270b50c6fcd$export$7c6e2c02157bb7d2, { className: "note", sideOffset: 5, children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pt-4 text-xs", children: [
-                "The Desktop and Mobile views are ",
-                /* @__PURE__ */ jsxRuntimeExports.jsx("em", { children: "an approximation" }),
-                " of what your email template will looke like on various devices. It should not be considered a source of truth, but rather a guide for styling and layout. Always send a test email to your target email clients for Quality Control, before sending emails in production."
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$f39c2d165cd861fe, { className: "note-close", "aria-label": "Close", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Cross2Icon, {}) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$21b07c8f274aebd5, { className: "note-arrow" })
-            ] }) })
+            ),
+            !!title && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `items-center overflow-hidden hidden lg:flex`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-base font-bold truncate text", children: title }) })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(LayoutGroup, { id: "topbar", children: setActiveView && /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            $6c1fd9e6a8969628$export$be92b6f5f03c0fe9,
+          !!title && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-row items-center gap-4", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs($cb5cc270b50c6fcd$export$be92b6f5f03c0fe9, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$41fb9f06171c75f4, { asChild: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "h-5 w-5", "aria-label": "Preview Information", children: /* @__PURE__ */ jsxRuntimeExports.jsx(QuestionMarkCircledIcon, { className: "h-5 w-5" }) }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$602eac185826482c, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs($cb5cc270b50c6fcd$export$7c6e2c02157bb7d2, { className: "note", sideOffset: 5, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "pt-4 text-xs", children: [
+                  "The Desktop and Mobile views are ",
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("em", { children: "an approximation" }),
+                  " of what your email template will looke like on various devices. It should not be considered a source of truth, but rather a guide for styling and layout. Always send a test email to your target email clients for Quality Control, before sending emails in production."
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$f39c2d165cd861fe, { className: "note-close", "aria-label": "Close", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Cross2Icon, {}) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$21b07c8f274aebd5, { className: "note-arrow" })
+              ] }) })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(LayoutGroup, { id: "topbar", children: setActiveView && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              $6c1fd9e6a8969628$export$be92b6f5f03c0fe9,
+              {
+                className: "hidden sm:inline-block items-center bg-darker-bg border border-dark-bg-border rounded overflow-hidden",
+                type: "single",
+                value: activeView,
+                "aria-label": "View mode",
+                onValueChange: (value) => {
+                  if (value)
+                    setActiveView(value);
+                },
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    NavButton,
+                    {
+                      activeView,
+                      addClassNames: "px-1 py-1 sm:px-3 sm:py-2",
+                      label: Views.Desktop
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Mobile }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Jsx }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Html }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Plain })
+                ]
+              }
+            ) })
+          ] })
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-dark-bg h-[70px] flex sm:hidden items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx(LayoutGroup, { id: "topbar", children: setActiveView && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      $6c1fd9e6a8969628$export$be92b6f5f03c0fe9,
+      {
+        className: "inline-block items-center bg-darker-bg border border-dark-bg-border rounded overflow-hidden",
+        type: "single",
+        value: activeView,
+        "aria-label": "View mode",
+        onValueChange: (value) => {
+          if (value)
+            setActiveView(value);
+        },
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            NavButton,
             {
-              className: "inline-block items-center bg-darker-bg border border-dark-bg-border rounded overflow-hidden",
-              type: "single",
-              value: activeView,
-              "aria-label": "View mode",
-              onValueChange: (value) => {
-                if (value)
-                  setActiveView(value);
-              },
-              children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  NavButton,
-                  {
-                    activeView,
-                    addClassNames: "px-1 py-1 sm:px-3 sm:py-2",
-                    label: Views.Desktop
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Mobile }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Jsx }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Html }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Plain })
-              ]
+              activeView,
+              addClassNames: "px-1 py-1 sm:px-3 sm:py-2",
+              label: Views.Desktop
             }
-          ) })
-        ] })
-      ]
-    }
-  )
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Mobile }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Jsx }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Html }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(NavButton, { activeView, label: Views.Plain })
+        ]
+      }
+    ) }) })
+  ] })
 );
 Nav.displayName = "Nav";
 
 const Shell = reactExports.forwardRef(
   ({ title, templateParts, children, html, activeView, setActiveView }, forwardedRef) => {
-    const [showNav] = reactExports.useState(false);
+    const [showNav, setShowNav] = reactExports.useState(false);
     return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col h-screen overflow-x-hidden", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: forwardedRef, className: "flex justify-between h-full", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         Sidebar,
         {
-          className: classnames("w-screen max-w-full md:max-w-[275px]", {
+          closeNav: () => setShowNav(false),
+          className: classnames("w-screen max-w-full lg:max-w-[275px]", {
             "translate-x-[-100%] lg:translate-x-0 absolute lg:relative": !showNav,
             "translate-x-0": showNav
           }),
@@ -54187,13 +54405,14 @@ const Shell = reactExports.forwardRef(
             "w-screen lg:w-[calc(100%_-_275px)]": !showNav
           }),
           children: [
-            title && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               Nav,
               {
                 title,
                 activeView,
                 setActiveView,
-                markup: html
+                markup: html,
+                openNav: () => setShowNav(true)
               }
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative h-[calc(100vh_-_70px)] overflow-auto", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mx-auto", children }) })
@@ -61041,7 +61260,7 @@ const Send = ({ markup }) => {
     /* @__PURE__ */ jsxRuntimeExports.jsx($cb5cc270b50c6fcd$export$41fb9f06171c75f4, { asChild: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       IconButton,
       {
-        className: "bg-darker-bg p-1 rounded focus:text-dark-bg-text ease-in-out transition duration-200 focus:outline-none focus:ring-2 focus:ring-gray-8 hover:text-dark-bg-text absolute top-[20px] right-[20px] hidden md:block",
+        className: "bg-darker-bg p-1 rounded focus:text-dark-bg-text ease-in-out transition duration-200 focus:outline-none focus:ring-2 focus:ring-gray-8 hover:text-dark-bg-text absolute top-[20px] right-[20px]",
         title: "Send preview email",
         children: /* @__PURE__ */ jsxRuntimeExports.jsx(IconPaperAirplane, {})
       }
@@ -61215,7 +61434,7 @@ const parseName = (path) => {
   const [basename] = segment.split(/\.[^.]+$/);
   return titleize(addSpacesForCamelCaseName(basename));
 };
-const relativePath = "../../demo/emails" + "/";
+const relativePath = `${"../../demo/emails"}/`;
 const modules = /* #__PURE__ */ Object.assign({"../../demo/emails/airbnb-review.tsx": __vite_glob_0_0,"../../demo/emails/apple-receipt.tsx": __vite_glob_0_1,"../../demo/emails/codepen-challengers.tsx": __vite_glob_0_2,"../../demo/emails/credential emails/dropbox-reset-password.tsx": __vite_glob_0_3,"../../demo/emails/credential emails/github-access-token.tsx": __vite_glob_0_4,"../../demo/emails/credential emails/linear-login-code.tsx": __vite_glob_0_5,"../../demo/emails/credential emails/magic links/notion-magic-link.tsx": __vite_glob_0_6,"../../demo/emails/credential emails/magic links/raycast-magic-link.tsx": __vite_glob_0_7,"../../demo/emails/credential emails/twitch-reset-password.tsx": __vite_glob_0_8,"../../demo/emails/google-play-policy-update.tsx": __vite_glob_0_9,"../../demo/emails/nike-receipt.tsx": __vite_glob_0_10,"../../demo/emails/plaid-verify-identity.tsx": __vite_glob_0_11,"../../demo/emails/slack-confirm.tsx": __vite_glob_0_12,"../../demo/emails/stack-overflow-tips.tsx": __vite_glob_0_13,"../../demo/emails/vercel-invite-user.tsx": __vite_glob_0_14,"../../demo/emails/welcome emails/koala-welcome.tsx": __vite_glob_0_15,"../../demo/emails/welcome emails/netlify-welcome.tsx": __vite_glob_0_16,"../../demo/emails/welcome emails/stripe-welcome.tsx": __vite_glob_0_17,"../../demo/emails/yelp-recent-login.tsx": __vite_glob_0_18});
 const sources = /* #__PURE__ */ Object.assign({"../../demo/emails/airbnb-review.tsx": __vite_glob_1_0,"../../demo/emails/apple-receipt.tsx": __vite_glob_1_1,"../../demo/emails/codepen-challengers.tsx": __vite_glob_1_2,"../../demo/emails/credential emails/dropbox-reset-password.tsx": __vite_glob_1_3,"../../demo/emails/credential emails/github-access-token.tsx": __vite_glob_1_4,"../../demo/emails/credential emails/linear-login-code.tsx": __vite_glob_1_5,"../../demo/emails/credential emails/magic links/notion-magic-link.tsx": __vite_glob_1_6,"../../demo/emails/credential emails/magic links/raycast-magic-link.tsx": __vite_glob_1_7,"../../demo/emails/credential emails/twitch-reset-password.tsx": __vite_glob_1_8,"../../demo/emails/google-play-policy-update.tsx": __vite_glob_1_9,"../../demo/emails/nike-receipt.tsx": __vite_glob_1_10,"../../demo/emails/plaid-verify-identity.tsx": __vite_glob_1_11,"../../demo/emails/slack-confirm.tsx": __vite_glob_1_12,"../../demo/emails/stack-overflow-tips.tsx": __vite_glob_1_13,"../../demo/emails/vercel-invite-user.tsx": __vite_glob_1_14,"../../demo/emails/welcome emails/koala-welcome.tsx": __vite_glob_1_15,"../../demo/emails/welcome emails/netlify-welcome.tsx": __vite_glob_1_16,"../../demo/emails/welcome emails/stripe-welcome.tsx": __vite_glob_1_17,"../../demo/emails/yelp-recent-login.tsx": __vite_glob_1_18});
 const pathLookup = Object.keys(modules).reduce((acc, path) => {
