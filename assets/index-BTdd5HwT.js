@@ -567,22 +567,32 @@ var Action;
 })(Action || (Action = {}));
 const PopStateEventType = "popstate";
 /**
- * Browser history stores the location in regular URLs. This is the standard for
- * most web apps, but it requires some configuration on the server to ensure you
- * serve the same app at multiple URLs.
+ * Hash history stores the location in window.location.hash. This makes it ideal
+ * for situations where you don't want to send the location to the server for
+ * some reason, either because you do cannot configure it or the URL space is
+ * reserved for something else.
  *
- * @see https://github.com/remix-run/history/tree/main/docs/api-reference.md#createbrowserhistory
+ * @see https://github.com/remix-run/history/tree/main/docs/api-reference.md#createhashhistory
  */
-function createBrowserHistory(options) {
+function createHashHistory(options) {
   if (options === void 0) {
     options = {};
   }
-  function createBrowserLocation(window, globalHistory) {
+  function createHashLocation(window, globalHistory) {
     let {
-      pathname,
-      search,
-      hash
-    } = window.location;
+      pathname = "/",
+      search = "",
+      hash = ""
+    } = parsePath(window.location.hash.substr(1));
+    // Hash URL should always have a leading / just like window.location.pathname
+    // does, so if an app ends up at a route like /#something then we add a
+    // leading slash so all of our path-matching behaves the same as if it would
+    // in a browser router.  This is particularly important when there exists a
+    // root splat route (<Route path="*">) since that matches internally against
+    // "/*" and we'd expect /#something to 404 in a hash router app.
+    if (!pathname.startsWith("/") && !pathname.startsWith(".")) {
+      pathname = "/" + pathname;
+    }
     return createLocation("", {
       pathname,
       search,
@@ -591,10 +601,20 @@ function createBrowserHistory(options) {
     // state defaults to `null` because `window.history.state` does
     globalHistory.state && globalHistory.state.usr || null, globalHistory.state && globalHistory.state.key || "default");
   }
-  function createBrowserHref(window, to) {
-    return typeof to === "string" ? to : createPath(to);
+  function createHashHref(window, to) {
+    let base = window.document.querySelector("base");
+    let href = "";
+    if (base && base.getAttribute("href")) {
+      let url = window.location.href;
+      let hashIndex = url.indexOf("#");
+      href = hashIndex === -1 ? url : url.slice(0, hashIndex);
+    }
+    return href + "#" + (typeof to === "string" ? to : createPath(to));
   }
-  return getUrlBasedHistory(createBrowserLocation, createBrowserHref, null, options);
+  function validateHashLocation(location, to) {
+    warning(location.pathname.charAt(0) === "/", "relative pathnames are not supported in hash history.push(" + JSON.stringify(to) + ")");
+  }
+  return getUrlBasedHistory(createHashLocation, createHashHref, validateHashLocation, options);
 }
 function invariant$1(value, message) {
   if (value === false || value === null || typeof value === "undefined") {
@@ -728,6 +748,7 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
   function push(to, state) {
     action = Action.Push;
     let location = createLocation(history.location, to, state);
+    if (validateLocation) validateLocation(location, to);
     index = getIndex() + 1;
     let historyState = getHistoryState(location, index);
     let url = history.createHref(location);
@@ -757,6 +778,7 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
   function replace(to, state) {
     action = Action.Replace;
     let location = createLocation(history.location, to, state);
+    if (validateLocation) validateLocation(location, to);
     index = getIndex();
     let historyState = getHistoryState(location, index);
     let url = history.createHref(location);
@@ -4331,13 +4353,13 @@ function getSearchParamsForLocation(locationSearch, defaultSearchParams) {
   return searchParams;
 }
 const _excluded = ["onClick", "relative", "reloadDocument", "replace", "state", "target", "to", "preventScrollReset"];
-function createBrowserRouter(routes, opts) {
+function createHashRouter(routes, opts) {
   return createRouter({
     basename: void 0 ,
     future: _extends$1({}, void 0 , {
       v7_prependBasename: true
     }),
-    history: createBrowserHistory({
+    history: createHashHistory({
       window: void 0 
     }),
     hydrationData: parseHydrationData(),
@@ -4707,26 +4729,26 @@ function composeEventHandlers(originalEventHandler, ourEventHandler, { checkForD
 }
 
 // packages/react/context/src/createContext.tsx
-function createContextScope(scopeName, createContextScopeDeps = []) {
+function createContextScope$1(scopeName, createContextScopeDeps = []) {
   let defaultContexts = [];
   function createContext3(rootComponentName, defaultContext) {
     const BaseContext = reactExports.createContext(defaultContext);
     const index = defaultContexts.length;
     defaultContexts = [...defaultContexts, defaultContext];
-    function Provider(props) {
+    const Provider = (props) => {
       const { scope, children, ...context } = props;
-      const Context = scope?.[scopeName][index] || BaseContext;
+      const Context = scope?.[scopeName]?.[index] || BaseContext;
       const value = reactExports.useMemo(() => context, Object.values(context));
       return /* @__PURE__ */ jsxRuntimeExports.jsx(Context.Provider, { value, children });
-    }
+    };
+    Provider.displayName = rootComponentName + "Provider";
     function useContext2(consumerName, scope) {
-      const Context = scope?.[scopeName][index] || BaseContext;
+      const Context = scope?.[scopeName]?.[index] || BaseContext;
       const context = reactExports.useContext(Context);
       if (context) return context;
       if (defaultContext !== void 0) return defaultContext;
       throw new Error(`\`${consumerName}\` must be used within \`${rootComponentName}\``);
     }
-    Provider.displayName = rootComponentName + "Provider";
     return [Provider, useContext2];
   }
   const createScope = () => {
@@ -4742,9 +4764,9 @@ function createContextScope(scopeName, createContextScopeDeps = []) {
     };
   };
   createScope.scopeName = scopeName;
-  return [createContext3, composeContextScopes(createScope, ...createContextScopeDeps)];
+  return [createContext3, composeContextScopes$1(createScope, ...createContextScopeDeps)];
 }
-function composeContextScopes(...scopes) {
+function composeContextScopes$1(...scopes) {
   const baseScope = scopes[0];
   if (scopes.length === 1) return baseScope;
   const createScope = () => {
@@ -4919,11 +4941,22 @@ function usePresence$1(present) {
   }, [present, send]);
   useLayoutEffect2(() => {
     if (node) {
+      let timeoutId;
+      const ownerWindow = node.ownerDocument.defaultView ?? window;
       const handleAnimationEnd = (event) => {
         const currentAnimationName = getAnimationName(stylesRef.current);
         const isCurrentAnimation = currentAnimationName.includes(event.animationName);
         if (event.target === node && isCurrentAnimation) {
-          reactDomExports.flushSync(() => send("ANIMATION_END"));
+          send("ANIMATION_END");
+          if (!prevPresentRef.current) {
+            const currentFillMode = node.style.animationFillMode;
+            node.style.animationFillMode = "forwards";
+            timeoutId = ownerWindow.setTimeout(() => {
+              if (node.style.animationFillMode === "forwards") {
+                node.style.animationFillMode = currentFillMode;
+              }
+            });
+          }
         }
       };
       const handleAnimationStart = (event) => {
@@ -4935,6 +4968,7 @@ function usePresence$1(present) {
       node.addEventListener("animationcancel", handleAnimationEnd);
       node.addEventListener("animationend", handleAnimationEnd);
       return () => {
+        ownerWindow.clearTimeout(timeoutId);
         node.removeEventListener("animationstart", handleAnimationStart);
         node.removeEventListener("animationcancel", handleAnimationEnd);
         node.removeEventListener("animationend", handleAnimationEnd);
@@ -4980,7 +5014,7 @@ function useId(deterministicId) {
 }
 
 var COLLAPSIBLE_NAME = "Collapsible";
-var [createCollapsibleContext, createCollapsibleScope] = createContextScope(COLLAPSIBLE_NAME);
+var [createCollapsibleContext, createCollapsibleScope] = createContextScope$1(COLLAPSIBLE_NAME);
 var [CollapsibleProvider, useCollapsibleContext] = createCollapsibleContext(COLLAPSIBLE_NAME);
 var Collapsible = reactExports.forwardRef(
   (props, forwardedRef) => {
@@ -5766,7 +5800,10 @@ function createFocusGuard() {
   const element = document.createElement("span");
   element.setAttribute("data-radix-focus-guard", "");
   element.tabIndex = 0;
-  element.style.cssText = "outline: none; opacity: 0; position: fixed; pointer-events: none";
+  element.style.outline = "none";
+  element.style.opacity = "0";
+  element.style.position = "fixed";
+  element.style.pointerEvents = "none";
   return element;
 }
 
@@ -8056,6 +8093,65 @@ var Arrow$1 = reactExports.forwardRef((props, forwardedRef) => {
 Arrow$1.displayName = NAME$1;
 var Root$1 = Arrow$1;
 
+// packages/react/context/src/createContext.tsx
+function createContextScope(scopeName, createContextScopeDeps = []) {
+  let defaultContexts = [];
+  function createContext3(rootComponentName, defaultContext) {
+    const BaseContext = reactExports.createContext(defaultContext);
+    const index = defaultContexts.length;
+    defaultContexts = [...defaultContexts, defaultContext];
+    function Provider(props) {
+      const { scope, children, ...context } = props;
+      const Context = scope?.[scopeName][index] || BaseContext;
+      const value = reactExports.useMemo(() => context, Object.values(context));
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(Context.Provider, { value, children });
+    }
+    function useContext2(consumerName, scope) {
+      const Context = scope?.[scopeName][index] || BaseContext;
+      const context = reactExports.useContext(Context);
+      if (context) return context;
+      if (defaultContext !== void 0) return defaultContext;
+      throw new Error(`\`${consumerName}\` must be used within \`${rootComponentName}\``);
+    }
+    Provider.displayName = rootComponentName + "Provider";
+    return [Provider, useContext2];
+  }
+  const createScope = () => {
+    const scopeContexts = defaultContexts.map((defaultContext) => {
+      return reactExports.createContext(defaultContext);
+    });
+    return function useScope(scope) {
+      const contexts = scope?.[scopeName] || scopeContexts;
+      return reactExports.useMemo(
+        () => ({ [`__scope${scopeName}`]: { ...scope, [scopeName]: contexts } }),
+        [scope, contexts]
+      );
+    };
+  };
+  createScope.scopeName = scopeName;
+  return [createContext3, composeContextScopes(createScope, ...createContextScopeDeps)];
+}
+function composeContextScopes(...scopes) {
+  const baseScope = scopes[0];
+  if (scopes.length === 1) return baseScope;
+  const createScope = () => {
+    const scopeHooks = scopes.map((createScope2) => ({
+      useScope: createScope2(),
+      scopeName: createScope2.scopeName
+    }));
+    return function useComposedScopes(overrideScopes) {
+      const nextScopes = scopeHooks.reduce((nextScopes2, { useScope, scopeName }) => {
+        const scopeProps = useScope(overrideScopes);
+        const currentScope = scopeProps[`__scope${scopeName}`];
+        return { ...nextScopes2, ...currentScope };
+      }, {});
+      return reactExports.useMemo(() => ({ [`__scope${baseScope.scopeName}`]: nextScopes }), [nextScopes]);
+    };
+  };
+  createScope.scopeName = baseScope.scopeName;
+  return createScope;
+}
+
 // packages/react/use-size/src/useSize.tsx
 function useSize(element) {
   const [size, setSize] = reactExports.useState(void 0);
@@ -8992,6 +9088,9 @@ var alwaysContainsScroll$1 = function (node) {
     return node.tagName === 'TEXTAREA';
 };
 var elementCanBeScrolled$1 = function (node, overflow) {
+    if (!(node instanceof Element)) {
+        return false;
+    }
     var styles = window.getComputedStyle(node);
     return (
     // not-not-scrollable
@@ -9011,8 +9110,8 @@ var locationCouldBeScrolled$1 = function (axis, node) {
         }
         var isScrollable = elementCouldBeScrolled$1(axis, current);
         if (isScrollable) {
-            var _a = getScrollVariables$1(axis, current), s = _a[1], d = _a[2];
-            if (s > d) {
+            var _a = getScrollVariables$1(axis, current), scrollHeight = _a[1], clientHeight = _a[2];
+            if (scrollHeight > clientHeight) {
                 return true;
             }
         }
@@ -9126,7 +9225,7 @@ function RemoveScrollSideCar$1(props) {
         return;
     }, [props.inert, props.lockRef.current, props.shards]);
     var shouldCancelEvent = reactExports.useCallback(function (event, parent) {
-        if ('touches' in event && event.touches.length === 2) {
+        if (('touches' in event && event.touches.length === 2) || (event.type === 'wheel' && event.ctrlKey)) {
             return !lastProps.current.allowPinchZoom;
         }
         var touch = getTouchXY$1(event);
@@ -9250,7 +9349,7 @@ var ReactRemoveScroll$1 = reactExports.forwardRef(function (props, ref) { return
 ReactRemoveScroll$1.classNames = RemoveScroll$1.classNames;
 
 var POPOVER_NAME = "Popover";
-var [createPopoverContext, createPopoverScope] = createContextScope(POPOVER_NAME, [
+var [createPopoverContext, createPopoverScope] = createContextScope$1(POPOVER_NAME, [
   createPopperScope
 ]);
 var usePopperScope = createPopperScope();
@@ -10165,18 +10264,12 @@ const getDefaultTransition = (valueKey, { keyframes }) => {
     return ease;
 };
 
-/**
- * Decide whether a transition is defined on a given Transition.
- * This filters out orchestration options and returns true
- * if any options are left.
- */
-function isTransitionDefined({ when, delay: _delay, delayChildren, staggerChildren, staggerDirection, repeat, repeatType, repeatDelay, from, elapsed, ...transition }) {
-    return !!Object.keys(transition).length;
-}
 function getValueTransition(transition, key) {
-    return (transition[key] ||
-        transition["default"] ||
-        transition);
+    return transition
+        ? transition[key] ||
+            transition["default"] ||
+            transition
+        : undefined;
 }
 
 const MotionGlobalConfig = {
@@ -10344,7 +10437,73 @@ function createRenderBatcher(scheduleNextBatch, allowKeepAlive) {
     return { schedule, cancel, state, steps };
 }
 
-const { schedule: frame, cancel: cancelFrame, state: frameData, steps, } = createRenderBatcher(typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame : noop, true);
+const { schedule: frame, cancel: cancelFrame, state: frameData, steps: frameSteps, } = createRenderBatcher(typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame : noop, true);
+
+/*
+  Bezier function generator
+  This has been modified from Gaëtan Renaudeau's BezierEasing
+  https://github.com/gre/bezier-easing/blob/master/src/index.js
+  https://github.com/gre/bezier-easing/blob/master/LICENSE
+  
+  I've removed the newtonRaphsonIterate algo because in benchmarking it
+  wasn't noticiably faster than binarySubdivision, indeed removing it
+  usually improved times, depending on the curve.
+  I also removed the lookup table, as for the added bundle size and loop we're
+  only cutting ~4 or so subdivision iterations. I bumped the max iterations up
+  to 12 to compensate and this still tended to be faster for no perceivable
+  loss in accuracy.
+  Usage
+    const easeOut = cubicBezier(.17,.67,.83,.67);
+    const x = easeOut(0.5); // returns 0.627...
+*/
+// Returns x(t) given t, x1, and x2, or y(t) given t, y1, and y2.
+const calcBezier = (t, a1, a2) => (((1.0 - 3.0 * a2 + 3.0 * a1) * t + (3.0 * a2 - 6.0 * a1)) * t + 3.0 * a1) *
+    t;
+const subdivisionPrecision = 0.0000001;
+const subdivisionMaxIterations = 12;
+function binarySubdivide(x, lowerBound, upperBound, mX1, mX2) {
+    let currentX;
+    let currentT;
+    let i = 0;
+    do {
+        currentT = lowerBound + (upperBound - lowerBound) / 2.0;
+        currentX = calcBezier(currentT, mX1, mX2) - x;
+        if (currentX > 0.0) {
+            upperBound = currentT;
+        }
+        else {
+            lowerBound = currentT;
+        }
+    } while (Math.abs(currentX) > subdivisionPrecision &&
+        ++i < subdivisionMaxIterations);
+    return currentT;
+}
+function cubicBezier(mX1, mY1, mX2, mY2) {
+    // If this is a linear gradient, return linear easing
+    if (mX1 === mY1 && mX2 === mY2)
+        return noop;
+    const getTForX = (aX) => binarySubdivide(aX, 0, 1, mX1, mX2);
+    // If animation is at start/end, return t without easing
+    return (t) => t === 0 || t === 1 ? t : calcBezier(getTForX(t), mY1, mY2);
+}
+
+// Accepts an easing function and returns a new one that outputs mirrored values for
+// the second half of the animation. Turns easeIn into easeInOut.
+const mirrorEasing = (easing) => (p) => p <= 0.5 ? easing(2 * p) / 2 : (2 - easing(2 * (1 - p))) / 2;
+
+// Accepts an easing function and returns a new one that outputs reversed values.
+// Turns easeIn into easeOut.
+const reverseEasing = (easing) => (p) => 1 - easing(1 - p);
+
+const backOut = /*@__PURE__*/ cubicBezier(0.33, 1.53, 0.69, 0.99);
+const backIn = /*@__PURE__*/ reverseEasing(backOut);
+const backInOut = /*@__PURE__*/ mirrorEasing(backIn);
+
+const anticipate = (p) => (p *= 2) < 1 ? 0.5 * backIn(p) : 0.5 * (2 - Math.pow(2, -10 * (p - 1)));
+
+const circIn = (p) => 1 - Math.sin(Math.acos(p));
+const circOut = reverseEasing(circIn);
+const circInOut = mirrorEasing(circIn);
 
 /**
  * Check if the value is a zero value string like "0px" or "0%"
@@ -10371,8 +10530,10 @@ let invariant = noop;
 const isNumericalString = (v) => /^-?(?:\d+(?:\.\d+)?|\.\d+)$/u.test(v);
 
 const checkStringStartsWith = (token) => (key) => typeof key === "string" && key.startsWith(token);
-const isCSSVariableName = checkStringStartsWith("--");
-const startsAsVariableToken = checkStringStartsWith("var(--");
+const isCSSVariableName = 
+/*@__PURE__*/ checkStringStartsWith("--");
+const startsAsVariableToken = 
+/*@__PURE__*/ checkStringStartsWith("var(--");
 const isCSSVariableToken = (value) => {
     const startsWithToken = startsAsVariableToken(value);
     if (!startsWithToken)
@@ -10439,25 +10600,8 @@ const scale = {
     default: 1,
 };
 
-/**
- * TODO: When we move from string as a source of truth to data models
- * everything in this folder should probably be referred to as models vs types
- */
-// If this number is a decimal, make it just five decimal places
-// to avoid exponents
-const sanitize = (v) => Math.round(v * 100000) / 100000;
-const floatRegex = /-?(?:\d+(?:\.\d+)?|\.\d+)/gu;
-const colorRegex = /(?:#[\da-f]{3,8}|(?:rgb|hsl)a?\((?:-?[\d.]+%?[,\s]+){2}-?[\d.]+%?\s*(?:[,/]\s*)?(?:\b\d+(?:\.\d+)?|\.\d+)?%?\))/giu;
-const singleColorRegex = /^(?:#[\da-f]{3,8}|(?:rgb|hsl)a?\((?:-?[\d.]+%?[,\s]+){2}-?[\d.]+%?\s*(?:[,/]\s*)?(?:\b\d+(?:\.\d+)?|\.\d+)?%?\))$/iu;
-function isString(v) {
-    return typeof v === "string";
-}
-function isNullish(v) {
-    return v == null;
-}
-
 const createUnitType = (unit) => ({
-    test: (v) => isString(v) && v.endsWith(unit) && v.split(" ").length === 1,
+    test: (v) => typeof v === "string" && v.endsWith(unit) && v.split(" ").length === 1,
     parse: parseFloat,
     transform: (v) => `${v}${unit}`,
 });
@@ -10714,18 +10858,32 @@ class KeyframeResolver {
     }
 }
 
+// If this number is a decimal, make it just five decimal places
+// to avoid exponents
+const sanitize = (v) => Math.round(v * 100000) / 100000;
+
+const floatRegex = /-?(?:\d+(?:\.\d+)?|\.\d+)/gu;
+
+function isNullish(v) {
+    return v == null;
+}
+
+const singleColorRegex = /^(?:#[\da-f]{3,8}|(?:rgb|hsl)a?\((?:-?[\d.]+%?[,\s]+){2}-?[\d.]+%?\s*(?:[,/]\s*)?(?:\b\d+(?:\.\d+)?|\.\d+)?%?\))$/iu;
+
 /**
  * Returns true if the provided string is a color, ie rgba(0,0,0,0) or #000,
  * but false if a number or multiple colors
  */
 const isColorString = (type, testProp) => (v) => {
-    return Boolean((isString(v) && singleColorRegex.test(v) && v.startsWith(type)) ||
+    return Boolean((typeof v === "string" &&
+        singleColorRegex.test(v) &&
+        v.startsWith(type)) ||
         (testProp &&
             !isNullish(v) &&
             Object.prototype.hasOwnProperty.call(v, testProp)));
 };
 const splitColor = (aName, bName, cName) => (v) => {
-    if (!isString(v))
+    if (typeof v !== "string")
         return v;
     const [a, b, c, alpha] = v.match(floatRegex);
     return {
@@ -10821,7 +10979,7 @@ const color = {
         }
     },
     transform: (v) => {
-        return isString(v)
+        return typeof v === "string"
             ? v
             : v.hasOwnProperty("red")
                 ? rgba.transform(v)
@@ -10829,10 +10987,12 @@ const color = {
     },
 };
 
+const colorRegex = /(?:#[\da-f]{3,8}|(?:rgb|hsl)a?\((?:-?[\d.]+%?[,\s]+){2}-?[\d.]+%?\s*(?:[,/]\s*)?(?:\b\d+(?:\.\d+)?|\.\d+)?%?\))/giu;
+
 function test(v) {
     var _a, _b;
     return (isNaN(v) &&
-        isString(v) &&
+        typeof v === "string" &&
         (((_a = v.match(floatRegex)) === null || _a === void 0 ? void 0 : _a.length) || 0) +
             (((_b = v.match(colorRegex)) === null || _b === void 0 ? void 0 : _b.length) || 0) >
             0);
@@ -10941,12 +11101,7 @@ const filter = {
     },
 };
 
-const int = {
-    ...number$1,
-    transform: Math.round,
-};
-
-const numberValueTypes = {
+const browserNumberValueTypes = {
     // Border props
     borderWidth: px,
     borderTopWidth: px,
@@ -10964,7 +11119,6 @@ const numberValueTypes = {
     maxWidth: px,
     height: px,
     maxHeight: px,
-    size: px,
     top: px,
     right: px,
     bottom: px,
@@ -10980,7 +11134,12 @@ const numberValueTypes = {
     marginRight: px,
     marginBottom: px,
     marginLeft: px,
-    // Transform props
+    // Misc
+    backgroundPositionX: px,
+    backgroundPositionY: px,
+};
+
+const transformValueTypes = {
     rotate: degrees,
     rotateX: degrees,
     rotateY: degrees,
@@ -11005,10 +11164,18 @@ const numberValueTypes = {
     originX: progressPercentage,
     originY: progressPercentage,
     originZ: px,
-    // Misc
+};
+
+const int = {
+    ...number$1,
+    transform: Math.round,
+};
+
+const numberValueTypes = {
+    ...browserNumberValueTypes,
+    ...transformValueTypes,
     zIndex: int,
-    backgroundPositionX: px,
-    backgroundPositionY: px,
+    size: px,
     // SVG
     fillOpacity: alpha,
     strokeOpacity: alpha,
@@ -11197,13 +11364,8 @@ class DOMKeyframesResolver extends KeyframeResolver {
     }
 }
 
-function memo(callback) {
-    let result;
-    return () => {
-        if (result === undefined)
-            result = callback();
-        return result;
-    };
+function isGenerator(type) {
+    return typeof type === "function";
 }
 
 let now;
@@ -11292,7 +11454,8 @@ function canAnimate(keyframes, name, type, velocity) {
     if (!isOriginAnimatable || !isTargetAnimatable) {
         return false;
     }
-    return hasKeyframesChanged(keyframes) || (type === "spring" && velocity);
+    return (hasKeyframesChanged(keyframes) ||
+        ((type === "spring" || isGenerator(type)) && velocity));
 }
 
 /**
@@ -11394,12 +11557,44 @@ class BaseAnimation {
     then(resolve, reject) {
         return this.currentFinishedPromise.then(resolve, reject);
     }
+    flatten() {
+        this.options.type = "keyframes";
+        this.options.ease = "linear";
+    }
     updateFinishedPromise() {
         this.currentFinishedPromise = new Promise((resolve) => {
             this.resolveFinishedPromise = resolve;
         });
     }
 }
+
+/*
+  Progress within given range
+
+  Given a lower limit and an upper limit, we return the progress
+  (expressed as a number 0-1) represented by the given value, and
+  limit that progress to within 0-1.
+
+  @param [number]: Lower limit
+  @param [number]: Upper limit
+  @param [number]: Value to find progress within given range
+  @return [number]: Progress of value within range as expressed 0-1
+*/
+const progress = (from, to, value) => {
+    const toFromDifference = to - from;
+    return toFromDifference === 0 ? 1 : (value - from) / toFromDifference;
+};
+
+const generateLinearEasing = (easing, duration, // as milliseconds
+resolution = 10 // as milliseconds
+) => {
+    let points = "";
+    const numPoints = Math.max(Math.round(duration / resolution), 2);
+    for (let i = 0; i < numPoints; i++) {
+        points += easing(progress(0, numPoints - 1, i)) + ", ";
+    }
+    return `linear(${points.substring(0, points.length - 2)})`;
+};
 
 /*
   Convert velocity into velocity per second
@@ -11417,20 +11612,42 @@ function calcGeneratorVelocity(resolveValue, t, current) {
     return velocityPerSecond(current - resolveValue(prevT), t - prevT);
 }
 
+const springDefaults = {
+    // Default spring physics
+    stiffness: 100,
+    damping: 10,
+    mass: 1.0,
+    velocity: 0.0,
+    // Default duration/bounce-based options
+    duration: 800, // in ms
+    bounce: 0.3,
+    visualDuration: 0.3, // in seconds
+    // Rest thresholds
+    restSpeed: {
+        granular: 0.01,
+        default: 2,
+    },
+    restDelta: {
+        granular: 0.005,
+        default: 0.5,
+    },
+    // Limits
+    minDuration: 0.01, // in seconds
+    maxDuration: 10.0, // in seconds
+    minDamping: 0.05,
+    maxDamping: 1,
+};
+
 const safeMin = 0.001;
-const minDuration = 0.01;
-const maxDuration$1 = 10.0;
-const minDamping = 0.05;
-const maxDamping = 1;
-function findSpring({ duration = 800, bounce = 0.25, velocity = 0, mass = 1, }) {
+function findSpring({ duration = springDefaults.duration, bounce = springDefaults.bounce, velocity = springDefaults.velocity, mass = springDefaults.mass, }) {
     let envelope;
     let derivative;
     let dampingRatio = 1 - bounce;
     /**
      * Restrict dampingRatio and duration to within acceptable ranges.
      */
-    dampingRatio = clamp(minDamping, maxDamping, dampingRatio);
-    duration = clamp(minDuration, maxDuration$1, millisecondsToSeconds(duration));
+    dampingRatio = clamp(springDefaults.minDamping, springDefaults.maxDamping, dampingRatio);
+    duration = clamp(springDefaults.minDuration, springDefaults.maxDuration, millisecondsToSeconds(duration));
     if (dampingRatio < 1) {
         /**
          * Underdamped spring
@@ -11474,8 +11691,8 @@ function findSpring({ duration = 800, bounce = 0.25, velocity = 0, mass = 1, }) 
     duration = secondsToMilliseconds(duration);
     if (isNaN(undampedFreq)) {
         return {
-            stiffness: 100,
-            damping: 10,
+            stiffness: springDefaults.stiffness,
+            damping: springDefaults.damping,
             duration,
         };
     }
@@ -11500,6 +11717,22 @@ function calcAngularFreq(undampedFreq, dampingRatio) {
     return undampedFreq * Math.sqrt(1 - dampingRatio * dampingRatio);
 }
 
+/**
+ * Implement a practical max duration for keyframe generation
+ * to prevent infinite loops
+ */
+const maxGeneratorDuration = 20000;
+function calcGeneratorDuration(generator) {
+    let duration = 0;
+    const timeStep = 50;
+    let state = generator.next(duration);
+    while (!state.done && duration < maxGeneratorDuration) {
+        duration += timeStep;
+        state = generator.next(duration);
+    }
+    return duration >= maxGeneratorDuration ? Infinity : duration;
+}
+
 const durationKeys = ["duration", "bounce"];
 const physicsKeys = ["stiffness", "damping", "mass"];
 function isSpringType(options, keys) {
@@ -11507,29 +11740,51 @@ function isSpringType(options, keys) {
 }
 function getSpringOptions(options) {
     let springOptions = {
-        velocity: 0.0,
-        stiffness: 100,
-        damping: 10,
-        mass: 1.0,
+        velocity: springDefaults.velocity,
+        stiffness: springDefaults.stiffness,
+        damping: springDefaults.damping,
+        mass: springDefaults.mass,
         isResolvedFromDuration: false,
         ...options,
     };
     // stiffness/damping/mass overrides duration/bounce
     if (!isSpringType(options, physicsKeys) &&
         isSpringType(options, durationKeys)) {
-        const derived = findSpring(options);
-        springOptions = {
-            ...springOptions,
-            ...derived,
-            mass: 1.0,
-        };
-        springOptions.isResolvedFromDuration = true;
+        if (options.visualDuration) {
+            const visualDuration = options.visualDuration;
+            const root = (2 * Math.PI) / (visualDuration * 1.2);
+            const stiffness = root * root;
+            const damping = 2 * clamp(0.05, 1, 1 - options.bounce) * Math.sqrt(stiffness);
+            springOptions = {
+                ...springOptions,
+                mass: springDefaults.mass,
+                stiffness,
+                damping,
+            };
+        }
+        else {
+            const derived = findSpring(options);
+            springOptions = {
+                ...springOptions,
+                ...derived,
+                mass: springDefaults.mass,
+            };
+            springOptions.isResolvedFromDuration = true;
+        }
     }
     return springOptions;
 }
-function spring({ keyframes, restDelta, restSpeed, ...options }) {
-    const origin = keyframes[0];
-    const target = keyframes[keyframes.length - 1];
+function spring(optionsOrVisualDuration = springDefaults.visualDuration, bounce = springDefaults.bounce) {
+    const options = typeof optionsOrVisualDuration !== "object"
+        ? {
+            visualDuration: optionsOrVisualDuration,
+            keyframes: [0, 1],
+            bounce,
+        }
+        : optionsOrVisualDuration;
+    let { restSpeed, restDelta } = options;
+    const origin = options.keyframes[0];
+    const target = options.keyframes[options.keyframes.length - 1];
     /**
      * This is the Iterator-spec return value. We ensure it's mutable rather than using a generator
      * to reduce GC during animation.
@@ -11551,8 +11806,12 @@ function spring({ keyframes, restDelta, restSpeed, ...options }) {
      * ratio between feeling good and finishing as soon as changes are imperceptible.
      */
     const isGranularScale = Math.abs(initialDelta) < 5;
-    restSpeed || (restSpeed = isGranularScale ? 0.01 : 2);
-    restDelta || (restDelta = isGranularScale ? 0.005 : 0.5);
+    restSpeed || (restSpeed = isGranularScale
+        ? springDefaults.restSpeed.granular
+        : springDefaults.restSpeed.default);
+    restDelta || (restDelta = isGranularScale
+        ? springDefaults.restDelta.granular
+        : springDefaults.restDelta.default);
     let resolveSpring;
     if (dampingRatio < 1) {
         const angularFreq = calcAngularFreq(undampedAngularFreq, dampingRatio);
@@ -11593,7 +11852,7 @@ function spring({ keyframes, restDelta, restSpeed, ...options }) {
                     dampedAngularFreq);
         };
     }
-    return {
+    const generator = {
         calculatedDuration: isResolvedFromDuration ? duration || null : null,
         next: (t) => {
             const current = resolveSpring(t);
@@ -11621,7 +11880,13 @@ function spring({ keyframes, restDelta, restSpeed, ...options }) {
             state.value = state.done ? target : current;
             return state;
         },
+        toString: () => {
+            const calculatedDuration = Math.min(calcGeneratorDuration(generator), maxGeneratorDuration);
+            const easing = generateLinearEasing((progress) => generator.next(calculatedDuration * progress).value, calculatedDuration, 30);
+            return calculatedDuration + "ms " + easing;
+        },
     };
+    return generator;
 }
 
 function inertia({ keyframes, velocity = 0.0, power = 0.8, timeConstant = 325, bounceDamping = 10, bounceStiffness = 500, modifyTarget, min, max, restDelta = 0.5, restSpeed, }) {
@@ -11707,54 +11972,6 @@ function inertia({ keyframes, velocity = 0.0, power = 0.8, timeConstant = 325, b
     };
 }
 
-/*
-  Bezier function generator
-  This has been modified from Gaëtan Renaudeau's BezierEasing
-  https://github.com/gre/bezier-easing/blob/master/src/index.js
-  https://github.com/gre/bezier-easing/blob/master/LICENSE
-  
-  I've removed the newtonRaphsonIterate algo because in benchmarking it
-  wasn't noticiably faster than binarySubdivision, indeed removing it
-  usually improved times, depending on the curve.
-  I also removed the lookup table, as for the added bundle size and loop we're
-  only cutting ~4 or so subdivision iterations. I bumped the max iterations up
-  to 12 to compensate and this still tended to be faster for no perceivable
-  loss in accuracy.
-  Usage
-    const easeOut = cubicBezier(.17,.67,.83,.67);
-    const x = easeOut(0.5); // returns 0.627...
-*/
-// Returns x(t) given t, x1, and x2, or y(t) given t, y1, and y2.
-const calcBezier = (t, a1, a2) => (((1.0 - 3.0 * a2 + 3.0 * a1) * t + (3.0 * a2 - 6.0 * a1)) * t + 3.0 * a1) *
-    t;
-const subdivisionPrecision = 0.0000001;
-const subdivisionMaxIterations = 12;
-function binarySubdivide(x, lowerBound, upperBound, mX1, mX2) {
-    let currentX;
-    let currentT;
-    let i = 0;
-    do {
-        currentT = lowerBound + (upperBound - lowerBound) / 2.0;
-        currentX = calcBezier(currentT, mX1, mX2) - x;
-        if (currentX > 0.0) {
-            upperBound = currentT;
-        }
-        else {
-            lowerBound = currentT;
-        }
-    } while (Math.abs(currentX) > subdivisionPrecision &&
-        ++i < subdivisionMaxIterations);
-    return currentT;
-}
-function cubicBezier(mX1, mY1, mX2, mY2) {
-    // If this is a linear gradient, return linear easing
-    if (mX1 === mY1 && mX2 === mY2)
-        return noop;
-    const getTForX = (aX) => binarySubdivide(aX, 0, 1, mX1, mX2);
-    // If animation is at start/end, return t without easing
-    return (t) => t === 0 || t === 1 ? t : calcBezier(getTForX(t), mY1, mY2);
-}
-
 const easeIn = /*@__PURE__*/ cubicBezier(0.42, 0, 1, 1);
 const easeOut = /*@__PURE__*/ cubicBezier(0, 0, 0.58, 1);
 const easeInOut = /*@__PURE__*/ cubicBezier(0.42, 0, 0.58, 1);
@@ -11763,23 +11980,7 @@ const isEasingArray = (ease) => {
     return Array.isArray(ease) && typeof ease[0] !== "number";
 };
 
-// Accepts an easing function and returns a new one that outputs mirrored values for
-// the second half of the animation. Turns easeIn into easeInOut.
-const mirrorEasing = (easing) => (p) => p <= 0.5 ? easing(2 * p) / 2 : (2 - easing(2 * (1 - p))) / 2;
-
-// Accepts an easing function and returns a new one that outputs reversed values.
-// Turns easeIn into easeOut.
-const reverseEasing = (easing) => (p) => 1 - easing(1 - p);
-
-const circIn = (p) => 1 - Math.sin(Math.acos(p));
-const circOut = reverseEasing(circIn);
-const circInOut = mirrorEasing(circIn);
-
-const backOut = /*@__PURE__*/ cubicBezier(0.33, 1.53, 0.69, 0.99);
-const backIn = /*@__PURE__*/ reverseEasing(backOut);
-const backInOut = /*@__PURE__*/ mirrorEasing(backIn);
-
-const anticipate = (p) => (p *= 2) < 1 ? 0.5 * backIn(p) : 0.5 * (2 - Math.pow(2, -10 * (p - 1)));
+const isBezierDefinition = (easing) => Array.isArray(easing) && typeof easing[0] === "number";
 
 const easingLookup = {
     linear: noop,
@@ -11795,7 +11996,7 @@ const easingLookup = {
     anticipate,
 };
 const easingDefinitionToFunction = (definition) => {
-    if (Array.isArray(definition)) {
+    if (isBezierDefinition(definition)) {
         // If cubic bezier definition, create bezier curve
         invariant(definition.length === 4);
         const [x1, y1, x2, y2] = definition;
@@ -11818,23 +12019,6 @@ const easingDefinitionToFunction = (definition) => {
  */
 const combineFunctions = (a, b) => (v) => b(a(v));
 const pipe = (...transformers) => transformers.reduce(combineFunctions);
-
-/*
-  Progress within given range
-
-  Given a lower limit and an upper limit, we return the progress
-  (expressed as a number 0-1) represented by the given value, and
-  limit that progress to within 0-1.
-
-  @param [number]: Lower limit
-  @param [number]: Upper limit
-  @param [number]: Value to find progress within given range
-  @return [number]: Progress of value within range as expressed 0-1
-*/
-const progress = (from, to, value) => {
-    const toFromDifference = to - from;
-    return toFromDifference === 0 ? 1 : (value - from) / toFromDifference;
-};
 
 /*
   Value in range from progress
@@ -11922,7 +12106,7 @@ function asRGBA(color) {
         return false;
     let model = type.parse(color);
     if (type === hsla) {
-        // TODO Remove this cast - needed since Framer Motion's stricter typing
+        // TODO Remove this cast - needed since Motion's stricter typing
         model = hslaToRgba(model);
     }
     return model;
@@ -12178,22 +12362,6 @@ function keyframes({ duration = 300, keyframes: keyframeValues, times, ease = "e
     };
 }
 
-/**
- * Implement a practical max duration for keyframe generation
- * to prevent infinite loops
- */
-const maxGeneratorDuration = 20000;
-function calcGeneratorDuration(generator) {
-    let duration = 0;
-    const timeStep = 50;
-    let state = generator.next(duration);
-    while (!state.done && duration < maxGeneratorDuration) {
-        duration += timeStep;
-        state = generator.next(duration);
-    }
-    return duration >= maxGeneratorDuration ? Infinity : duration;
-}
-
 const frameloopDriver = (update) => {
     const passTimestamp = ({ timestamp }) => update(timestamp);
     return {
@@ -12240,9 +12408,15 @@ class MainThreadAnimation extends BaseAnimation {
     this.resolver = new KeyframeResolver$1(keyframes2, onResolved, name, motionValue, element);
     this.resolver.scheduleResolve();
   }
+  flatten() {
+    super.flatten();
+    if (this._resolved) {
+      Object.assign(this._resolved, this.initPlayback(this._resolved.keyframes));
+    }
+  }
   initPlayback(keyframes$1) {
     const { type = "keyframes", repeat = 0, repeatDelay = 0, repeatType, velocity = 0 } = this.options;
-    const generatorFactory = generators[type] || keyframes;
+    const generatorFactory = isGenerator(type) ? type : generators[type] || keyframes;
     let mapPercentToKeyframes;
     let mirroredGenerator;
     if (generatorFactory !== keyframes && typeof keyframes$1[0] !== "number") {
@@ -12472,11 +12646,45 @@ const acceleratedValues = new Set([
     // "background-color"
 ]);
 
-const isBezierDefinition = (easing) => Array.isArray(easing) && typeof easing[0] === "number";
+function memo(callback) {
+    let result;
+    return () => {
+        if (result === undefined)
+            result = callback();
+        return result;
+    };
+}
+
+/**
+ * Add the ability for test suites to manually set support flags
+ * to better test more environments.
+ */
+const supportsFlags = {
+    linearEasing: undefined,
+};
+
+function memoSupports(callback, supportsFlag) {
+    const memoized = memo(callback);
+    return () => { var _a; return (_a = supportsFlags[supportsFlag]) !== null && _a !== void 0 ? _a : memoized(); };
+}
+
+const supportsLinearEasing = /*@__PURE__*/ memoSupports(() => {
+    try {
+        document
+            .createElement("div")
+            .animate({ opacity: 0 }, { easing: "linear(0, 1)" });
+    }
+    catch (e) {
+        return false;
+    }
+    return true;
+}, "linearEasing");
 
 function isWaapiSupportedEasing(easing) {
-    return Boolean(!easing ||
-        (typeof easing === "string" && easing in supportedWaapiEasing) ||
+    return Boolean((typeof easing === "function" && supportsLinearEasing()) ||
+        !easing ||
+        (typeof easing === "string" &&
+            (easing in supportedWaapiEasing || supportsLinearEasing())) ||
         isBezierDefinition(easing) ||
         (Array.isArray(easing) && easing.every(isWaapiSupportedEasing)));
 }
@@ -12492,30 +12700,30 @@ const supportedWaapiEasing = {
     backIn: /*@__PURE__*/ cubicBezierAsString([0.31, 0.01, 0.66, -0.59]),
     backOut: /*@__PURE__*/ cubicBezierAsString([0.33, 1.53, 0.69, 0.99]),
 };
-function mapEasingToNativeEasingWithDefault(easing) {
-    return (mapEasingToNativeEasing(easing) ||
-        supportedWaapiEasing.easeOut);
-}
-function mapEasingToNativeEasing(easing) {
+function mapEasingToNativeEasing(easing, duration) {
     if (!easing) {
         return undefined;
+    }
+    else if (typeof easing === "function" && supportsLinearEasing()) {
+        return generateLinearEasing(easing, duration);
     }
     else if (isBezierDefinition(easing)) {
         return cubicBezierAsString(easing);
     }
     else if (Array.isArray(easing)) {
-        return easing.map(mapEasingToNativeEasingWithDefault);
+        return easing.map((segmentEasing) => mapEasingToNativeEasing(segmentEasing, duration) ||
+            supportedWaapiEasing.easeOut);
     }
     else {
         return supportedWaapiEasing[easing];
     }
 }
 
-function animateStyle(element, valueName, keyframes, { delay = 0, duration = 300, repeat = 0, repeatType = "loop", ease, times, } = {}) {
+function startWaapiAnimation(element, valueName, keyframes, { delay = 0, duration = 300, repeat = 0, repeatType = "loop", ease = "easeInOut", times, } = {}) {
     const keyframeOptions = { [valueName]: keyframes };
     if (times)
         keyframeOptions.offset = times;
-    const easing = mapEasingToNativeEasing(ease);
+    const easing = mapEasingToNativeEasing(ease, duration);
     /**
      * If this is an easing array, apply to keyframes, not animation as a whole
      */
@@ -12531,7 +12739,13 @@ function animateStyle(element, valueName, keyframes, { delay = 0, duration = 300
     });
 }
 
+function attachTimeline(animation, timeline) {
+    animation.timeline = timeline;
+    animation.onfinish = null;
+}
+
 const supportsWaapi = /*@__PURE__*/ memo(() => Object.hasOwnProperty.call(Element.prototype, "animate"));
+
 /**
  * 10ms is chosen here as it strikes a balance between smooth
  * results (more than one keyframe per frame at 60fps) and
@@ -12549,7 +12763,9 @@ const maxDuration = 20000;
  * handing off.
  */
 function requiresPregeneratedKeyframes(options) {
-    return options.type === "spring" || !isWaapiSupportedEasing(options.ease);
+    return (isGenerator(options.type) ||
+        options.type === "spring" ||
+        !isWaapiSupportedEasing(options.ease));
 }
 function pregenerateKeyframes(keyframes, options) {
     /**
@@ -12583,6 +12799,14 @@ function pregenerateKeyframes(keyframes, options) {
         ease: "linear",
     };
 }
+const unsupportedEasingFunctions = {
+    anticipate,
+    backInOut,
+    circInOut,
+};
+function isUnsupportedEase(key) {
+    return key in unsupportedEasingFunctions;
+}
 class AcceleratedAnimation extends BaseAnimation {
     constructor(options) {
         super(options);
@@ -12599,6 +12823,16 @@ class AcceleratedAnimation extends BaseAnimation {
          */
         if (!((_a = motionValue.owner) === null || _a === void 0 ? void 0 : _a.current)) {
             return false;
+        }
+        /**
+         * If the user has provided an easing function name that isn't supported
+         * by WAAPI (like "anticipate"), we need to provide the corressponding
+         * function. This will later get converted to a linear() easing function.
+         */
+        if (typeof ease === "string" &&
+            supportsLinearEasing() &&
+            isUnsupportedEase(ease)) {
+            ease = unsupportedEasingFunctions[ease];
         }
         /**
          * If this animation needs pre-generated keyframes then generate.
@@ -12618,12 +12852,12 @@ class AcceleratedAnimation extends BaseAnimation {
             ease = pregeneratedAnimation.ease;
             type = "keyframes";
         }
-        const animation = animateStyle(motionValue.owner.current, name, keyframes, { ...this.options, duration, times, ease });
+        const animation = startWaapiAnimation(motionValue.owner.current, name, keyframes, { ...this.options, duration, times, ease });
         // Override the browser calculated startTime with one synchronised to other JS
         // and WAAPI animations starting this event loop.
         animation.startTime = startTime !== null && startTime !== void 0 ? startTime : this.calcStartTime();
         if (this.pendingTimeline) {
-            animation.timeline = this.pendingTimeline;
+            attachTimeline(animation, this.pendingTimeline);
             this.pendingTimeline = undefined;
         }
         else {
@@ -12716,8 +12950,7 @@ class AcceleratedAnimation extends BaseAnimation {
             if (!resolved)
                 return noop;
             const { animation } = resolved;
-            animation.timeline = timeline;
-            animation.onfinish = null;
+            attachTimeline(animation, timeline);
         }
         return noop;
     }
@@ -12813,21 +13046,6 @@ class AcceleratedAnimation extends BaseAnimation {
     }
 }
 
-function observeTimeline(update, timeline) {
-    let prevProgress;
-    const onFrame = () => {
-        const { currentTime } = timeline;
-        const percentage = currentTime === null ? 0 : currentTime.value;
-        const progress = percentage / 100;
-        if (prevProgress !== progress) {
-            update(progress);
-        }
-        prevProgress = progress;
-    };
-    frame.update(onFrame, true);
-    return () => cancelFrame(onFrame);
-}
-
 const supportsScrollTimeline = memo(() => window.ScrollTimeline !== undefined);
 
 class GroupPlaybackControls {
@@ -12850,22 +13068,18 @@ class GroupPlaybackControls {
             this.animations[i][propName] = newValue;
         }
     }
-    attachTimeline(timeline) {
-        const cancelAll = this.animations.map((animation) => {
+    attachTimeline(timeline, fallback) {
+        const subscriptions = this.animations.map((animation) => {
             if (supportsScrollTimeline() && animation.attachTimeline) {
-                animation.attachTimeline(timeline);
+                return animation.attachTimeline(timeline);
             }
             else {
-                animation.pause();
-                return observeTimeline((progress) => {
-                    animation.time = animation.duration * progress;
-                }, timeline);
+                return fallback(animation);
             }
         });
         return () => {
-            cancelAll.forEach((cancelTimeline, i) => {
-                if (cancelTimeline)
-                    cancelTimeline();
+            subscriptions.forEach((cancel, i) => {
+                cancel && cancel();
                 this.animations[i].stop();
             });
         };
@@ -12895,6 +13109,9 @@ class GroupPlaybackControls {
     runAll(methodName) {
         this.animations.forEach((controls) => controls[methodName]());
     }
+    flatten() {
+        this.runAll("flatten");
+    }
     play() {
         this.runAll("play");
     }
@@ -12909,14 +13126,16 @@ class GroupPlaybackControls {
     }
 }
 
-const animateMotionValue = (name, value, target, transition = {}, element, isHandoff, 
 /**
- * Currently used to remove values from will-change when an animation ends.
- * Preferably this would be handled by event listeners on the MotionValue
- * but these aren't consistent enough yet when considering the different ways
- * an animation can be cancelled.
+ * Decide whether a transition is defined on a given Transition.
+ * This filters out orchestration options and returns true
+ * if any options are left.
  */
-onEnd) => (onComplete) => {
+function isTransitionDefined({ when, delay: _delay, delayChildren, staggerChildren, staggerDirection, repeat, repeatType, repeatDelay, from, elapsed, ...transition }) {
+    return !!Object.keys(transition).length;
+}
+
+const animateMotionValue = (name, value, target, transition = {}, element, isHandoff) => (onComplete) => {
     const valueTransition = getValueTransition(transition, name) || {};
     /**
      * Most transition values are currently completely overwritten by value-specific
@@ -12943,9 +13162,7 @@ onEnd) => (onComplete) => {
         onComplete: () => {
             onComplete();
             valueTransition.onComplete && valueTransition.onComplete();
-            onEnd && onEnd();
         },
-        onStop: onEnd,
         name,
         motionValue: value,
         element: isHandoff ? undefined : element,
@@ -13081,7 +13298,7 @@ class MotionValue {
    * @internal
    */
   constructor(init, options = {}) {
-    this.version = "11.5.6";
+    this.version = "11.12.0";
     this.canTrackVelocity = null;
     this.events = {};
     this.updateAndNotify = (v, render = true) => {
@@ -13365,57 +13582,6 @@ function getOptimisedAppearId(visualElement) {
     return visualElement.props[optimizedAppearDataAttribute];
 }
 
-function getWillChangeName(name) {
-    if (transformProps.has(name)) {
-        return "transform";
-    }
-    else if (acceleratedValues.has(name)) {
-        return camelToDash(name);
-    }
-}
-
-class WillChangeMotionValue extends MotionValue {
-    constructor() {
-        super(...arguments);
-        this.output = [];
-        this.counts = new Map();
-    }
-    add(name) {
-        const styleName = getWillChangeName(name);
-        if (!styleName)
-            return;
-        /**
-         * Update counter. Each value has an indepdent counter
-         * as multiple sources could be requesting the same value
-         * gets added to will-change.
-         */
-        const prevCount = this.counts.get(styleName) || 0;
-        this.counts.set(styleName, prevCount + 1);
-        if (prevCount === 0) {
-            this.output.push(styleName);
-            this.update();
-        }
-        /**
-         * Prevents the remove function from being called multiple times.
-         */
-        let hasRemoved = false;
-        return () => {
-            if (hasRemoved)
-                return;
-            hasRemoved = true;
-            const newCount = this.counts.get(styleName) - 1;
-            this.counts.set(styleName, newCount);
-            if (newCount === 0) {
-                removeItem(this.output, styleName);
-                this.update();
-            }
-        };
-    }
-    update() {
-        this.set(this.output.length ? this.output.join(", ") : "auto");
-    }
-}
-
 const isMotionValue = (value) => Boolean(value && value.getVelocity);
 
 function isWillChangeMotionValue(value) {
@@ -13423,18 +13589,7 @@ function isWillChangeMotionValue(value) {
 }
 
 function addValueToWillChange(visualElement, key) {
-    var _a;
-    if (!visualElement.applyWillChange)
-        return;
-    let willChange = visualElement.getValue("willChange");
-    /**
-     * If we haven't created a willChange MotionValue, and the we haven't been
-     * manually provided one, create one.
-     */
-    if (!willChange && !((_a = visualElement.props.style) === null || _a === void 0 ? void 0 : _a.willChange)) {
-        willChange = new WillChangeMotionValue("auto");
-        visualElement.addValue("willChange", willChange);
-    }
+    const willChange = visualElement.getValue("willChange");
     /**
      * It could be that a user has set willChange to a regular MotionValue,
      * in which case we can't add the value to it.
@@ -13491,9 +13646,10 @@ function animateTarget(visualElement, targetAndTransition, { delay = 0, transiti
                 }
             }
         }
+        addValueToWillChange(visualElement, key);
         value.start(animateMotionValue(key, value, valueTarget, visualElement.shouldReduceMotion && transformProps.has(key)
             ? { type: false }
-            : valueTransition, visualElement, isHandoff, addValueToWillChange(visualElement, key)));
+            : valueTransition, visualElement, isHandoff));
         const animation = value.animation;
         if (animation) {
             animations.push(animation);
@@ -14694,7 +14850,6 @@ class VisualElementDragControls {
             }
         };
         const onStart = (event, info) => {
-            var _a;
             // Attempt to grab the global drag gesture lock - maybe make this part of PanSession
             const { drag, dragPropagation, onDragStart } = this.getProps();
             if (drag && !dragPropagation) {
@@ -14736,8 +14891,7 @@ class VisualElementDragControls {
             if (onDragStart) {
                 frame.postRender(() => onDragStart(event, info));
             }
-            (_a = this.removeWillChange) === null || _a === void 0 ? void 0 : _a.call(this);
-            this.removeWillChange = addValueToWillChange(this.visualElement, "transform");
+            addValueToWillChange(this.visualElement, "transform");
             const { animationState } = this.visualElement;
             animationState && animationState.setActive("whileDrag", true);
         };
@@ -14793,8 +14947,6 @@ class VisualElementDragControls {
         });
     }
     stop(event, info) {
-        var _a;
-        (_a = this.removeWillChange) === null || _a === void 0 ? void 0 : _a.call(this);
         const isDragging = this.isDragging;
         this.cancel();
         if (!isDragging)
@@ -14935,7 +15087,8 @@ class VisualElementDragControls {
     }
     startAxisValueAnimation(axis, transition) {
         const axisValue = this.getAxisMotionValue(axis);
-        return axisValue.start(animateMotionValue(axis, axisValue, 0, transition, this.visualElement, false, addValueToWillChange(this.visualElement, axis)));
+        addValueToWillChange(this.visualElement, axis);
+        return axisValue.start(animateMotionValue(axis, axisValue, 0, transition, this.visualElement, false));
     }
     stopAnimation() {
         eachAxis((axis) => this.getAxisMotionValue(axis).stop());
@@ -16286,9 +16439,9 @@ function createProjectionNode$1({ attachResizeListener, defaultParent, measureSc
             frameData.delta = clamp(0, 1000 / 60, now - frameData.timestamp);
             frameData.timestamp = now;
             frameData.isProcessing = true;
-            steps.update.process(frameData);
-            steps.preRender.process(frameData);
-            steps.render.process(frameData);
+            frameSteps.update.process(frameData);
+            frameSteps.preRender.process(frameData);
+            frameSteps.render.process(frameData);
             frameData.isProcessing = false;
         }
         didUpdate() {
@@ -17808,9 +17961,8 @@ const useIsomorphicLayoutEffect = isBrowser ? reactExports.useLayoutEffect : rea
 
 const LazyContext = reactExports.createContext({ strict: false });
 
-let scheduleHandoffComplete = false;
 function useVisualElement(Component, visualState, props, createVisualElement, ProjectionNodeConstructor) {
-    var _a;
+    var _a, _b;
     const { visualElement: parent } = reactExports.useContext(MotionContext);
     const lazyContext = reactExports.useContext(LazyContext);
     const presenceContext = reactExports.useContext(PresenceContext);
@@ -17844,8 +17996,15 @@ function useVisualElement(Component, visualState, props, createVisualElement, Pr
         (visualElement.type === "html" || visualElement.type === "svg")) {
         createProjectionNode(visualElementRef.current, props, ProjectionNodeConstructor, initialLayoutGroupConfig);
     }
+    const isMounted = reactExports.useRef(false);
     reactExports.useInsertionEffect(() => {
-        visualElement && visualElement.update(props, presenceContext);
+        /**
+         * Check the component has already mounted before calling
+         * `update` unnecessarily. This ensures we skip the initial update.
+         */
+        if (visualElement && isMounted.current) {
+            visualElement.update(props, presenceContext);
+        }
     });
     /**
      * Cache this value as we want to know whether HandoffAppearAnimations
@@ -17853,11 +18012,13 @@ function useVisualElement(Component, visualState, props, createVisualElement, Pr
      */
     const optimisedAppearId = props[optimizedAppearDataAttribute];
     const wantsHandoff = reactExports.useRef(Boolean(optimisedAppearId) &&
-        !window.MotionHandoffIsComplete &&
-        ((_a = window.MotionHasOptimisedAnimation) === null || _a === void 0 ? void 0 : _a.call(window, optimisedAppearId)));
+        !((_a = window.MotionHandoffIsComplete) === null || _a === void 0 ? void 0 : _a.call(window, optimisedAppearId)) &&
+        ((_b = window.MotionHasOptimisedAnimation) === null || _b === void 0 ? void 0 : _b.call(window, optimisedAppearId)));
     useIsomorphicLayoutEffect(() => {
         if (!visualElement)
             return;
+        isMounted.current = true;
+        window.MotionIsMounted = true;
         visualElement.updateFeatures();
         microtask.render(visualElement.render);
         /**
@@ -17880,17 +18041,16 @@ function useVisualElement(Component, visualState, props, createVisualElement, Pr
         if (!wantsHandoff.current && visualElement.animationState) {
             visualElement.animationState.animateChanges();
         }
-        wantsHandoff.current = false;
-        // This ensures all future calls to animateChanges() will run in useEffect
-        if (!scheduleHandoffComplete) {
-            scheduleHandoffComplete = true;
-            queueMicrotask(completeHandoff);
+        if (wantsHandoff.current) {
+            // This ensures all future calls to animateChanges() in this component will run in useEffect
+            queueMicrotask(() => {
+                var _a;
+                (_a = window.MotionHandoffMarkAsComplete) === null || _a === void 0 ? void 0 : _a.call(window, optimisedAppearId);
+            });
+            wantsHandoff.current = false;
         }
     });
     return visualElement;
-}
-function completeHandoff() {
-    window.MotionHandoffIsComplete = true;
 }
 function createProjectionNode(visualElement, props, ProjectionNodeConstructor, initialPromotionConfig) {
     const { layoutId, layout, drag, dragConstraints, layoutScroll, layoutRoot, } = props;
@@ -18187,13 +18347,6 @@ function scrapeMotionValuesFromProps$1(props, prevProps, visualElement) {
             newValues[key] = style[key];
         }
     }
-    /**
-     * If the willChange style has been manually set as a string, set
-     * applyWillChange to false to prevent it from automatically being applied.
-     */
-    if (visualElement && style && typeof style.willChange === "string") {
-        visualElement.applyWillChange = false;
-    }
     return newValues;
 }
 
@@ -18226,9 +18379,9 @@ function useConstant(init) {
     return ref.current;
 }
 
-function makeState({ applyWillChange = false, scrapeMotionValuesFromProps, createRenderState, onMount, }, props, context, presenceContext, isStatic) {
+function makeState({ scrapeMotionValuesFromProps, createRenderState, onMount, }, props, context, presenceContext) {
     const state = {
-        latestValues: makeLatestValues(props, context, presenceContext, isStatic ? false : applyWillChange, scrapeMotionValuesFromProps),
+        latestValues: makeLatestValues(props, context, presenceContext, scrapeMotionValuesFromProps),
         renderState: createRenderState(),
     };
     if (onMount) {
@@ -18239,30 +18392,11 @@ function makeState({ applyWillChange = false, scrapeMotionValuesFromProps, creat
 const makeUseVisualState = (config) => (props, isStatic) => {
     const context = reactExports.useContext(MotionContext);
     const presenceContext = reactExports.useContext(PresenceContext);
-    const make = () => makeState(config, props, context, presenceContext, isStatic);
+    const make = () => makeState(config, props, context, presenceContext);
     return isStatic ? make() : useConstant(make);
 };
-function addWillChange(willChange, name) {
-    const memberName = getWillChangeName(name);
-    if (memberName) {
-        addUniqueItem(willChange, memberName);
-    }
-}
-function forEachDefinition(props, definition, callback) {
-    const list = Array.isArray(definition) ? definition : [definition];
-    for (let i = 0; i < list.length; i++) {
-        const resolved = resolveVariantFromProps(props, list[i]);
-        if (resolved) {
-            const { transitionEnd, transition, ...target } = resolved;
-            callback(target, transitionEnd);
-        }
-    }
-}
-function makeLatestValues(props, context, presenceContext, shouldApplyWillChange, scrapeMotionValues) {
-    var _a;
+function makeLatestValues(props, context, presenceContext, scrapeMotionValues) {
     const values = {};
-    const willChange = [];
-    const applyWillChange = shouldApplyWillChange && ((_a = props.style) === null || _a === void 0 ? void 0 : _a.willChange) === undefined;
     const motionValues = scrapeMotionValues(props, {});
     for (const key in motionValues) {
         values[key] = resolveMotionValue(motionValues[key]);
@@ -18287,39 +18421,31 @@ function makeLatestValues(props, context, presenceContext, shouldApplyWillChange
     if (variantToSet &&
         typeof variantToSet !== "boolean" &&
         !isAnimationControls(variantToSet)) {
-        forEachDefinition(props, variantToSet, (target, transitionEnd) => {
-            for (const key in target) {
-                let valueTarget = target[key];
-                if (Array.isArray(valueTarget)) {
-                    /**
-                     * Take final keyframe if the initial animation is blocked because
-                     * we want to initialise at the end of that blocked animation.
-                     */
-                    const index = isInitialAnimationBlocked
-                        ? valueTarget.length - 1
-                        : 0;
-                    valueTarget = valueTarget[index];
-                }
-                if (valueTarget !== null) {
-                    values[key] = valueTarget;
-                }
-            }
-            for (const key in transitionEnd) {
-                values[key] = transitionEnd[key];
-            }
-        });
-    }
-    // Add animating values to will-change
-    if (applyWillChange) {
-        if (animate && initial !== false && !isAnimationControls(animate)) {
-            forEachDefinition(props, animate, (target) => {
+        const list = Array.isArray(variantToSet) ? variantToSet : [variantToSet];
+        for (let i = 0; i < list.length; i++) {
+            const resolved = resolveVariantFromProps(props, list[i]);
+            if (resolved) {
+                const { transitionEnd, transition, ...target } = resolved;
                 for (const key in target) {
-                    addWillChange(willChange, key);
+                    let valueTarget = target[key];
+                    if (Array.isArray(valueTarget)) {
+                        /**
+                         * Take final keyframe if the initial animation is blocked because
+                         * we want to initialise at the end of that blocked animation.
+                         */
+                        const index = isInitialAnimationBlocked
+                            ? valueTarget.length - 1
+                            : 0;
+                        valueTarget = valueTarget[index];
+                    }
+                    if (valueTarget !== null) {
+                        values[key] = valueTarget;
+                    }
                 }
-            });
-        }
-        if (willChange.length) {
-            values.willChange = willChange.join(",");
+                for (const key in transitionEnd) {
+                    values[key] = transitionEnd[key];
+                }
+            }
         }
     }
     return values;
@@ -18587,7 +18713,6 @@ const svgMotionConfig = {
 
 const htmlMotionConfig = {
     useVisualState: makeUseVisualState({
-        applyWillChange: true,
         scrapeMotionValuesFromProps: scrapeMotionValuesFromProps$1,
         createRenderState: createHtmlRenderState,
     }),
@@ -18893,7 +19018,6 @@ class VisualElement {
     return {};
   }
   constructor({ parent, props, presenceContext, reducedMotionConfig, blockInitialAnimation, visualState }, options = {}) {
-    this.applyWillChange = false;
     this.current = null;
     this.children = /* @__PURE__ */ new Set();
     this.isVariantNode = false;
@@ -19250,7 +19374,6 @@ class HTMLVisualElement extends DOMVisualElement {
     constructor() {
         super(...arguments);
         this.type = "html";
-        this.applyWillChange = true;
         this.renderInstance = renderHTML;
     }
     readValueFromInstance(instance, key) {
@@ -19430,15 +19553,20 @@ var Views = /* @__PURE__ */ ((Views2) => {
 const button$1 = "text-sm font-medium px-3 py-2 transition ease-in-out duration-200 relative";
 const motionSpan = "absolute left-0 right-0 top-0 bottom-0 bg-cta-bg";
 const span = "capitalize relative";
+const variants = {
+  active: { opacity: 1 },
+  inactive: { opacity: 0 }
+};
 const NavButton = ({ activeView, addClassNames, label }) => /* @__PURE__ */ jsxRuntimeExports.jsx(Item2, { value: label, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(motion.div, { className: classnames(button$1, addClassNames), children: [
-  activeView === label && /* @__PURE__ */ jsxRuntimeExports.jsx(
+  /* @__PURE__ */ jsxRuntimeExports.jsx(
     motion.span,
     {
+      animate: activeView === label ? "active" : "inactive",
+      initial: "inactive",
+      variants,
       layoutId: "topbar",
       className: motionSpan,
-      initial: { opacity: 0 },
-      animate: { opacity: 1 },
-      exit: { opacity: 0 }
+      exit: "inactive"
     }
   ),
   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: classnames(span, { "text-cta-text": activeView === label }), children: label })
@@ -19589,7 +19717,7 @@ Shell.displayName = "Shell";
 
 const Home = ({ templateParts }) => {
   React.useEffect(() => {
-    document.title = "JSX email";
+    document.title = "jsx-email Preview";
   }, []);
   return /* @__PURE__ */ jsxRuntimeExports.jsx(Shell, { templateParts, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
@@ -19597,7 +19725,7 @@ const Home = ({ templateParts }) => {
       id: "landing",
       className: "bg-dark-bg max-w-md border border-dark-bg-border m-auto mt-56 rounded-md p-8",
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "font-medium", children: "JSX Email Preview" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "font-medium", children: "jsx-email Preview" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(Slot, { className: "mt-2 mb-4 text-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Slottable, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
           "Start creating an email template by running",
           " ",
@@ -32503,7 +32631,7 @@ const Preview = ({ html, jsx: jsx2, plainText, templateParts, title }) => {
   });
   let iframeStyle = {};
   React.useEffect(() => {
-    document.title = `JSX email • ${title}`;
+    document.title = `jsx-email • ${title}`;
     if (view && validViews.includes(view))
       setActiveView(view);
   }, [searchParams]);
@@ -32569,11 +32697,11 @@ const Preview = ({ html, jsx: jsx2, plainText, templateParts, title }) => {
   );
 };
 
-const scriptRel = 'modulepreload';const assetsURL = function(dep) { return "/"+dep };const seen = {};const __vitePreload = function preload(baseModule, deps, importerUrl) {
+const scriptRel = 'modulepreload';const assetsURL = function(dep, importerUrl) { return new URL(dep, importerUrl).href };const seen = {};const __vitePreload = function preload(baseModule, deps, importerUrl) {
     let promise = Promise.resolve();
     // @ts-expect-error true will be replaced with boolean later
     if (true && deps && deps.length > 0) {
-        document.getElementsByTagName('link');
+        const links = document.getElementsByTagName('link');
         const cspNonceMeta = document.querySelector('meta[property=csp-nonce]');
         // `.nonce` should be used to get along with nonce hiding (https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/nonce#accessing_nonces_and_nonce_hiding)
         // Firefox 67-74 uses modern chunks and supports CSP nonce, but does not support `.nonce`
@@ -32581,14 +32709,27 @@ const scriptRel = 'modulepreload';const assetsURL = function(dep) { return "/"+d
         const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute('nonce');
         promise = Promise.all(deps.map((dep) => {
             // @ts-expect-error assetsURL is declared before preload.toString()
-            dep = assetsURL(dep);
+            dep = assetsURL(dep, importerUrl);
             if (dep in seen)
                 return;
             seen[dep] = true;
             const isCss = dep.endsWith('.css');
             const cssSelector = isCss ? '[rel="stylesheet"]' : '';
+            const isBaseRelative = !!importerUrl;
             // check if the file is already preloaded by SSR markup
-            if (document.querySelector(`link[href="${dep}"]${cssSelector}`)) {
+            if (isBaseRelative) {
+                // When isBaseRelative is true then we have `importerUrl` and `dep` is
+                // already converted to an absolute URL by the `assetsURL` function
+                for (let i = links.length - 1; i >= 0; i--) {
+                    const link = links[i];
+                    // The `links[i].href` is an absolute URL thanks to browser doing the work
+                    // for us. See https://html.spec.whatwg.org/multipage/common-dom-interfaces.html#reflecting-content-attributes-in-idl-attributes:idl-domstring-5
+                    if (link.href === dep && (!isCss || link.rel === 'stylesheet')) {
+                        return;
+                    }
+                }
+            }
+            else if (document.querySelector(`link[href="${dep}"]${cssSelector}`)) {
                 return;
             }
             const link = document.createElement('link');
@@ -32623,3818 +32764,6 @@ const scriptRel = 'modulepreload';const assetsURL = function(dep) { return "/"+d
     });
 };
 
-const __vite_glob_0_0 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,Oxygen-Sans,Ubuntu,Cantarell,&#x22;Helvetica Neue&#x22;,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Read Joker's review<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <table align=\"center\" width=\"100%\" style=\"background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,Oxygen-Sans,Ubuntu,Cantarell,&#x22;Helvetica Neue&#x22;,sans-serif\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n      <tbody>\n        <tr>\n          <td>\n            <div style=\"table-layout:fixed;width:100%\">\n              <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n                <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;margin:0 auto;padding:20px 0 48px;width:580px\">\n                  <tbody>\n                    <tr style=\"width:100%\">\n                      <td align=\"center\">\n                        <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td><img alt=\"Airbnb\" src=\"https://jsx.email/assets/demo/airbnb-logo.png\" width=\"96\" height=\"30\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td><img alt=\"Joker\" src=\"https://jsx.email/assets/demo/batman-twilight.jpg\" width=\"96\" height=\"96\" style=\"border:none;display:block;outline:none;text-decoration:none;margin:0 auto;margin-bottom:16px;border-radius:50%\"></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" style=\"padding-bottom:20px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td>\n                                <p style=\"font-size:32px;line-height:1.3;margin:16px 0;font-weight:700;color:#484848\">Here's what Joker wrote</p>\n                                <p style=\"font-size:18px;line-height:1.4;margin:16px 0;color:#484848;padding:24px;background-color:#f2f3f3;border-radius:4px\">\"Batsy's stay at my Airbnb Batcave was a riot! Batman surprised with a hidden sense of humor, engaging in epic banter and a prank war. His detective skills impressed, and the Batcave remained spotless. Game night and snacks were a hit, and even during downtime, he couldn't resist a Bat-signal. Hosting Batsy was chaos perfected – if you want a guest with brooding intensity and unexpected laughter, Batman's your Bat. Hahahahahahahahahaha! \"</p>\n                                <p style=\"font-size:18px;line-height:1.4;margin:16px 0;color:#484848\">Now that the review period is over, we’ve posted Joker’s review to your Airbnb profile.</p>\n                                <p style=\"font-size:18px;line-height:1.4;margin:16px 0;color:#484848;padding-bottom:16px\">While it’s too late to write a review of your own, you can send your feedback to Joker using your Airbnb message thread.</p>\n                                <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                                  <tbody style=\"width:100%\">\n                                    <tr style=\"width:100%\"></tr>\n                                  </tbody>\n                                </table>\n                                <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td align=\"center\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:60px;v-text-anchor:middle;width:300px;\" arcsize=\"5%\"  strokeweight=\"1px\" fillcolor=#ff5a5f>\n            <w:anchorlock/>\n            <center style=\"font-size:18px;color:#fff;\">\n            Send My Feedback\n            </center></v:roundrect>\n            <![endif]--></span><a href=\"https://airbnb.com/\" style=\"-webkit-text-size-adjust:none;border-radius:3px;display:inline-block;font-size:18px;line-height:58px;max-width:300px;text-align:center;text-decoration:none;width:100%;background-color:#ff5a5f;color:#fff;mso-hide:all\">Send My Feedback</a></td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#cccccc;margin:20px 0\">\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:18px;line-height:1.4;margin:16px 0;color:#484848;font-weight:700\">Common questions</p>\n                        <p style=\"font-size:14px;line-height:24px;margin:16px 0\"><a href=\"https://airbnb.com/help/article/13\" style=\"color:#ff5a5f;text-decoration:none;font-size:18px;line-height:1.4;display:block\">How do reviews work?</a></p>\n                        <p style=\"font-size:14px;line-height:24px;margin:16px 0\"><a href=\"https://airbnb.com/help/article/1257\" style=\"color:#ff5a5f;text-decoration:none;font-size:18px;line-height:1.4;display:block\">How do star ratings work?</a></p>\n                        <p style=\"font-size:14px;line-height:24px;margin:16px 0\"><a href=\"https://airbnb.com/help/article/995\" style=\"color:#ff5a5f;text-decoration:none;font-size:18px;line-height:1.4;display:block\">Can I leave a review after 14 days?</a></p>\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#cccccc;margin:20px 0\">\n                        <p style=\"font-size:14px;line-height:24px;margin:16px 0;color:#9ca299;margin-bottom:10px\">Airbnb, Inc., 888 Brannan St, San Francisco, CA 94103</p><a href=\"https://airbnb.com\" style=\"color:#9ca299;text-decoration:underline;font-size:14px\">Report unsafe behavior</a>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </div>\n            </div>\n          </td>\n        </tr>\n      </tbody>\n    </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n  </body>\n\n</html>";
-
-const __vite_glob_0_1 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"font-family:&#x22;Helvetica Neue&#x22;,Helvetica,Arial,sans-serif;background-color:#ffffff\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Apple Receipt<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;margin:0 auto;padding:20px 0 48px;width:660px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td><img alt=\"Apple Logo\" src=\"https://jsx.email/assets/demo/apple-logo.png\" width=\"42\" height=\"42\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                              <td align=\"right\" style=\"display:table-cell\">\n                                <p style=\"font-size:32px;line-height:24px;margin:16px 0;font-weight:300;color:#888888\">Receipt</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:24px;margin:36px 0 40px 0;text-align:center;font-weight:500;color:#111111\">Save 3% on all your Apple purchases with Apple Card.<sup style=\"font-weight:300\">1</sup> <a href=\"https://www.apple.com/apple-card\" style=\"color:#067df7;text-decoration:none\">Apply and use in minutes</a><sup style=\"font-weight:300\">2</sup></p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"border-collapse:collapse;border-spacing:0px;color:rgb(51,51,51);background-color:rgb(250,250,250);border-radius:3px;font-size:12px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" style=\"height:46px\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td colspan=\"2\">\n                                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td>\n                                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                                          <tbody style=\"width:100%\">\n                                            <tr style=\"width:100%\">\n                                              <td style=\"padding-left:20px;border-style:solid;border-color:white;border-width:0px 1px 1px 0px;height:44px\">\n                                                <p style=\"font-size:10px;line-height:1.4;margin:0;padding:0;color:rgb(102,102,102)\">APPLE ID</p><a style=\"color:#15c;text-decoration:underline;font-size:12px;margin:0;padding:0;line-height:1.4\">bruce@wayne.com</a>\n                                              </td>\n                                            </tr>\n                                          </tbody>\n                                        </table>\n                                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                                          <tbody style=\"width:100%\">\n                                            <tr style=\"width:100%\">\n                                              <td style=\"padding-left:20px;border-style:solid;border-color:white;border-width:0px 1px 1px 0px;height:44px\">\n                                                <p style=\"font-size:10px;line-height:1.4;margin:0;padding:0;color:rgb(102,102,102)\">INVOICE DATE</p>\n                                                <p style=\"font-size:12px;line-height:1.4;margin:0;padding:0\">18 Jan 2023</p>\n                                              </td>\n                                            </tr>\n                                          </tbody>\n                                        </table>\n                                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                                          <tbody style=\"width:100%\">\n                                            <tr style=\"width:100%\">\n                                              <td style=\"padding-left:20px;border-style:solid;border-color:white;border-width:0px 1px 1px 0px;height:44px\">\n                                                <p style=\"font-size:10px;line-height:1.4;margin:0;padding:0;color:rgb(102,102,102)\">ORDER ID</p><a style=\"color:#15c;text-decoration:underline;font-size:12px;margin:0;padding:0;line-height:1.4\">ML4F5L8522</a>\n                                              </td>\n                                              <td style=\"padding-left:20px;border-style:solid;border-color:white;border-width:0px 1px 1px 0px;height:44px\">\n                                                <p style=\"font-size:10px;line-height:1.4;margin:0;padding:0;color:rgb(102,102,102)\">DOCUMENT NO.</p>\n                                                <p style=\"font-size:12px;line-height:1.4;margin:0;padding:0\">186623754793</p>\n                                              </td>\n                                            </tr>\n                                          </tbody>\n                                        </table>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                              </td>\n                              <td colspan=\"2\" style=\"padding-left:20px;border-style:solid;border-color:white;border-width:0px 1px 1px 0px;height:44px\">\n                                <p style=\"font-size:10px;line-height:1.4;margin:0;padding:0;color:rgb(102,102,102)\">BILLED TO</p>\n                                <p style=\"font-size:12px;line-height:1.4;margin:0;padding:0\">Visa .... 7461 (Apple Pay)</p>\n                                <p style=\"font-size:12px;line-height:1.4;margin:0;padding:0\">Bruce Wayne</p>\n                                <p style=\"font-size:12px;line-height:1.4;margin:0;padding:0\">2125 Chestnut St</p>\n                                <p style=\"font-size:12px;line-height:1.4;margin:0;padding:0\">San Francisco, CA 94123</p>\n                                <p style=\"font-size:12px;line-height:1.4;margin:0;padding:0\">USA</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"border-collapse:collapse;border-spacing:0px;color:rgb(51,51,51);background-color:rgb(250,250,250);border-radius:3px;font-size:12px;margin:30px 0 15px 0;height:24px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:24px;margin:0;background:#fafafa;padding-left:10px;font-weight:500\">App Store</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td style=\"width:64px\"><img alt=\"HBO Max\" src=\"https://jsx.email/assets/demo/apple-hbo-max-icon.jpeg\" width=\"64\" height=\"64\" style=\"border:1px solid rgba(128,128,128,0.2);display:block;outline:none;text-decoration:none;margin:0 0 0 20px;border-radius:14px\"></td>\n                              <td style=\"padding-left:22px\">\n                                <p style=\"font-size:12px;line-height:1.4;margin:0;font-weight:600;padding:0\">HBO Max: Stream TV &#x26; Movies</p>\n                                <p style=\"font-size:12px;line-height:1.4;margin:0;color:rgb(102,102,102);padding:0\">HBO Max Ad-Free (Monthly)</p>\n                                <p style=\"font-size:12px;line-height:1.4;margin:0;color:rgb(102,102,102);padding:0\">Renews Aug 20, 2023</p><a href=\"https://userpub.itunes.apple.com/WebObjects/MZUserPublishing.woa/wa/addUserReview?cc=us&#x26;id=1497977514&#x26;o=i&#x26;type=Subscription%20Renewal\" data-saferedirecturl=\"https://www.google.com/url?q=https://userpub.itunes.apple.com/WebObjects/MZUserPublishing.woa/wa/addUserReview?cc%3Dus%26id%3D1497977514%26o%3Di%26type%3DSubscription%2520Renewal&#x26;source=gmail&#x26;ust=1673963081204000&#x26;usg=AOvVaw2DFCLKMo1snS-Swk5H26Z1\" style=\"color:rgb(0,112,201);text-decoration:none;font-size:12px\">Write a Review</a><span style=\"margin-left:4px;margin-right:4px;color:rgb(51,51,51);font-weight:200\">|</span><a href=\"https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/reportAProblem?a=1497977514&#x26;cc=us&#x26;d=683263808&#x26;o=i&#x26;p=29065684906671&#x26;pli=29092219632071&#x26;s=1\" data-saferedirecturl=\"https://www.google.com/url?q=https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/reportAProblem?a%3D1497977514%26cc%3Dus%26d%3D683263808%26o%3Di%26p%3D29065684906671%26pli%3D29092219632071%26s%3D1&#x26;source=gmail&#x26;ust=1673963081204000&#x26;usg=AOvVaw3y47L06B2LTrL6qsmaW2Hq\" style=\"color:rgb(0,112,201);text-decoration:none;font-size:12px\">Report a Problem</a>\n                              </td>\n                              <td align=\"right\" style=\"display:table-cell;padding:0px 20px 0px 0px;width:100px;vertical-align:top\">\n                                <p style=\"font-size:12px;line-height:24px;margin:0;font-weight:600\">$14.99</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;margin:30px 0 0 0\">\n                <table align=\"right\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"right\" style=\"display:table-cell\">\n                                <p style=\"font-size:10px;line-height:24px;margin:0;color:rgb(102,102,102);font-weight:600;padding:0px 30px 0px 0px;text-align:right\">TOTAL</p>\n                              </td>\n                              <td style=\"height:48px;border-left:1px solid;border-color:rgb(238,238,238)\"></td>\n                              <td style=\"display:table-cell;width:90px\">\n                                <p style=\"font-size:16px;line-height:24px;margin:0px 20px 0px 0px;font-weight:600;white-space:nowrap;text-align:right\">$14.99</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;margin:0 0 75px 0\">\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"center\" style=\"display:block\"><img alt=\"Apple Card\" src=\"https://jsx.email/assets/demo/apple-card-icon.png\" width=\"60\" height=\"17\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"center\" style=\"display:block;margin:15px 0 0 0\">\n                                <p style=\"font-size:24px;line-height:24px;margin:16px 0;font-weight:500\">Save 3% on all your Apple purchases.</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"center\" style=\"display:table-cell;margin:10px 0 0 0\"><a href=\"https://wallet.apple.com/apple-card/setup/feature/ccs?referrer=cid%3Dapy-120-100003\" style=\"color:rgb(0,126,255);text-decoration:none\"><img alt=\"Apple Wallet\" src=\"https://jsx.email/assets/demo/apple-wallet.png\" width=\"28\" height=\"28\" style=\"border:none;display:inherit;outline:none;text-decoration:none;padding-right:8px;vertical-align:middle\"><span style=\"font-size:14px;font-weight:400;text-decoration:none\">Apply and use in minutes</span></a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;margin:65px 0 20px 0\">\n                <p style=\"font-size:12px;line-height:auto;margin:0;color:rgb(102,102,102);margin-bottom:16px\">1. 3% savings is earned as Daily Cash and is transferred to your Apple Cash card when transactions post to your Apple Card account. If you do not have an Apple Cash card, Daily Cash can be applied by you as a credit on your statement balance. 3% is the total amount of Daily Cash earned for these purchases. See the Apple Card Customer Agreement for more details on Daily Cash and qualifying transactions.</p>\n                <p style=\"font-size:12px;line-height:auto;margin:0;color:rgb(102,102,102);margin-bottom:16px\">2. Subject to credit approval.</p>\n                <p style=\"font-size:12px;line-height:auto;margin:0;color:rgb(102,102,102);margin-bottom:16px\">To access and use all the features of Apple Card, you must add Apple Card to Wallet on an iPhone or iPad with iOS or iPadOS 13.2 or later. Update to the latest version of iOS or iPadOS by going to Settings > General > Software Update. Tap Download and Install.</p>\n                <p style=\"font-size:12px;line-height:auto;margin:0;color:rgb(102,102,102);margin-bottom:16px\">Available for qualifying applicants in the United States.</p>\n                <p style=\"font-size:12px;line-height:auto;margin:0;color:rgb(102,102,102);margin-bottom:16px\">Apple Card is issued by Goldman Sachs Bank USA, Salt Lake City Branch.</p>\n                <p style=\"font-size:12px;line-height:auto;margin:0;color:rgb(102,102,102);margin-bottom:16px\">If you reside in the US territories, please call Goldman Sachs at 877-255-5923 with questions about Apple Card.</p>\n                <p style=\"font-size:12px;line-height:auto;margin:20px 0;color:rgb(102,102,102);text-align:center\">Privacy: We use a<a href=\"http://support.apple.com/kb/HT207233\" style=\"color:rgb(0,115,255);text-decoration:none\"> Subscriber ID </a>to provide reports to developers.</p>\n                <p style=\"font-size:12px;line-height:auto;margin:20px 0;color:rgb(102,102,102);text-align:center\">Get help with subscriptions and purchases.<a href=\"https://support.apple.com/billing?cid=email_receipt\" style=\"color:rgb(0,115,255);text-decoration:none\">Visit Apple Support.</a></p>\n                <p style=\"font-size:12px;line-height:auto;margin:20px 0;color:rgb(102,102,102);text-align:center\">Learn how to <a href=\"https://support.apple.com/kb/HT204030?cid=email_receipt_itunes_article_HT204030\" style=\"color:#067df7;text-decoration:none\">manage your password preferences</a> for iTunes, Apple Books, and App Store purchases.</p>\n                <p style=\"font-size:12px;line-height:auto;margin:20px 0;color:rgb(102,102,102);text-align:center\"> You have the option to stop receiving email receipts for your subscription renewals. If you have opted out, you can still view your receipts in your account under Purchase History. To manage receipts or to opt in again, go to <a href=\"https://finance-app.itunes.apple.com/account/subscriptions?unsupportedRedirectUrl=https://apps.apple.com/US/invoice\" style=\"color:#067df7;text-decoration:none\">Account Settings.</a></p>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"center\" style=\"display:block;margin:40px 0 0 0\"><img alt=\"Apple Card\" src=\"https://jsx.email/assets/demo/apple-logo.png\" width=\"26\" height=\"26\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:12px;line-height:24px;margin:8px 0 0 0;text-align:center;color:rgb(102,102,102)\"><a href=\"https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/accountSummary?mt=8\" style=\"color:#067df7;text-decoration:none\">Account Settings</a> • <a href=\"https://www.apple.com/legal/itunes/us/sales.html\" style=\"color:#067df7;text-decoration:none\">Terms of Sale</a> • <a href=\"https://www.apple.com/legal/privacy/\" style=\"color:#067df7;text-decoration:none\">Privacy Policy </a></p>\n                <p style=\"font-size:12px;line-height:24px;margin:25px 0 0 0;text-align:center;color:rgb(102,102,102)\">Copyright © 2023 Apple Inc. <br> <a href=\"https://www.apple.com/legal/\" style=\"color:#067df7;text-decoration:none\">All rights reserved</a></p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_2 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"font-family:&#x22;Google Sans&#x22;,Roboto,RobotoDraft,Helvetica,Arial,sans-serif;background-color:#505050;margin:0\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">#CodePenChallenge: Cubes<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <table align=\"center\" width=\"100%\" style=\"width:100%;background-color:#191919;margin:0 auto;padding-bottom:30px;z-index:999\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n      <tbody>\n        <tr>\n          <td><img alt=\"codepen\" src=\"https://jsx.email/assets/demo/codepen-challengers.png\" width=\"600\" style=\"border:none;display:block;outline:none;text-decoration:none;margin:auto\"></td>\n        </tr>\n      </tbody>\n    </table>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:648px;padding-left:12px;padding-right:12px;margin:0 auto;width:648px;position:relative\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <p style=\"font-size:13px;line-height:24px;margin:0 0 16px 0;background-color:#505050;text-align:center;padding:10px 0 25px 0;position:absolute;width:100%;max-width:648px;top:-28px\"><a style=\"color:#fff;text-decoration:none;cursor:pointer\">View this Challenge on CodePen</a></p>\n                <h1 style=\"background:#f0d361;padding:30px;color:#191919;font-weight:400;margin-bottom:0\"><strong>This week:</strong> #CodePenChallenge: <p style=\"font-size:32px;line-height:24px;margin:4px 0 0 0\">Cubes</p>\n                </h1>\n                <table align=\"center\" width=\"100%\" style=\"margin:0;background:#fff;padding:0 24px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0\">The Shape challenge continues!</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0\">Last week, we kicked things off with round shapes. We \"rounded\" up the Pens from week one in our <a style=\"color:#15c;text-decoration:none;cursor:pointer\">#CodePenChallenge: Round</a> collection.</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0\">This week, we move on to cubes 🧊</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0\">Creating cubes in the browser is all about mastery of illusion. Take control of perspective and shadows and you can make the magic of 3D on a flat screen 🧙</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0\">This week is a fun chance to work on your CSS shape-building skills, or dig into a 3D JavaScript library like Three.js.</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0\">This week's starter template features an ice cube emoji to help inspire a \"cool\" idea for your Pen. As always, the template is just as jumping off point. Feel free to incorporate the 🧊 in your creation, add more elements, or freeze it out completely and start over from scratch!</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:0 0 40px 0;border:6px solid #ebd473;padding:20px\">💪 <strong>Your Challenge:</strong> <a style=\"color:#15c;text-decoration:none;cursor:pointer\">create a Pen that includes cube shapes.</a></p><img alt=\"codepen\" src=\"https://jsx.email/assets/demo/codepen-cube.png\" width=\"600\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                        <table align=\"center\" width=\"100%\" style=\"margin-top:40px;margin-bottom:24px;text-align:center;background:#0b112a;color:#fff;padding:35px 20px 30px 20px;border:6px solid #2138c6\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td><img alt=\"codepen\" src=\"https://jsx.email/assets/demo/codepen-pro.png\" width=\"250\" style=\"border:none;display:block;outline:none;text-decoration:none;margin:0 auto 30px auto\">\n                                <p style=\"font-size:14px;line-height:24px;margin:16px 0\">CodePen PRO combines a bunch of features that can help any front-end designer or developer at any experience level.</p>\n                                <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td align=\"left\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:42px;v-text-anchor:middle;width:108px;\" arcsize=\"0%\"  strokeweight=\"1px\" fillcolor=#2138c6>\n            <w:anchorlock/>\n            <center style=\"font-size:15px;color:#fff;\">\n            [object Object]\n            </center></v:roundrect>\n            <![endif]--></span><a style=\"-webkit-text-size-adjust:none;border-radius:0;display:inline-block;font-size:15px;line-height:40px;max-width:108px;text-align:center;text-decoration:none;width:100%;background-color:#2138c6;color:#fff;mso-hide:all\"><strong>Learn More</strong></a></td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:18px;line-height:1.5;margin:16px 0;background:#f5d247;padding:30px\"><strong>To participate:</strong> <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Create a Pen →</a> and tag it <a style=\"color:#15c;text-decoration:none;cursor:pointer\"><strong>codepenchallenge</strong></a> and<a style=\"color:#15c;text-decoration:none;cursor:pointer\"> <strong>cpc-cubes</strong></a>. We'll be watching and gathering the Pens into a Collection, and sharing on <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Twitter</a> and <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Instagram</a> (Use the #CodePenChallenge tag on Twitter and Instagram as well).</p>\n                <table align=\"center\" width=\"100%\" style=\"margin:0;background:#fff;padding:0 24px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td style=\"width:50%;padding-right:10px\">\n                                <p style=\"font-size:18px;line-height:1.1;margin:16px 0;font-weight:900\">IDEAS!</p>\n                                <table align=\"center\" width=\"100%\" style=\"padding:20px;margin:0 0 20px 0;border-radius:10px;font-size:36px;text-align:center;background:#fff4c8;border:1px solid #f4d247\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td>🌟<p style=\"font-size:13px;line-height:24px;margin:16px 0;text-align:left\">This week we move from 2 dimensions to three! Maybe you could exercise your <a style=\"color:#15c;text-decoration:none;cursor:pointer\">perspective</a> in CSS to create a 3D cube. Or, you can try out creating 3D shapes in JavaScript, using <a style=\"color:#15c;text-decoration:none;cursor:pointer\">WebGL</a> or building a <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Three.js scene</a>.</p>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                                <table align=\"center\" width=\"100%\" style=\"padding:20px;margin:0 0 20px 0;border-radius:10px;font-size:36px;text-align:center;background:#fff4c8;border:1px solid #f4d247\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td>🌟<p style=\"font-size:13px;line-height:24px;margin:16px 0;text-align:left\">There's more to cubes than just six square sides. There are variations on the cube that could be fun to play with this week: <a style=\"color:#15c;text-decoration:none;cursor:pointer\">cuboid shapes</a> are hexahedrons with faces that aren't always squares. And if you want to really push the boundaries of shape, consider the 4 dimensional <a style=\"color:#15c;text-decoration:none;cursor:pointer\">tesseract!</a></p>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                                <table align=\"center\" width=\"100%\" style=\"padding:20px;margin:0 0 20px 0;border-radius:10px;font-size:36px;text-align:center;background:#fff4c8;border:1px solid #f4d247\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td>🌟<p style=\"font-size:13px;line-height:24px;margin:16px 0;text-align:left\">Here's a mind-bending idea that can combine the round shapes from week one with this week's cube theme: <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Spherical Cubes</a> 😳 Solving longstanding mathematical mysteries is probably outside the scope of a CodePen challenge, but you could use front-end tools to explore fitting spheres into cubes, or vice-versa.</p>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                              </td>\n                              <td style=\"width:50%;padding-left:10px\">\n                                <p style=\"font-size:18px;line-height:1.1;margin:16px 0;font-weight:900;margin-top:-40px\">RESOURCES!</p>\n                                <table align=\"center\" width=\"100%\" style=\"padding:20px;margin:0 0 20px 0;border-radius:10px;font-size:36px;text-align:center;background:#d9f6ff;border:1px solid #92bfd0\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td>📖<p style=\"font-size:13px;line-height:24px;margin:16px 0;text-align:left\">Learn all about <a style=\"color:#15c;text-decoration:none;cursor:pointer\">How CSS Perspective Works</a> and how to build a 3D CSS cube from scratch in Amit Sheen's in-depth tutorial for CSS-Tricks. Or, check out stunning examples of WebGL cubes from Matthias Hurrle: <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Just Ice</a> and <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Posing</a>.</p>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                                <table align=\"center\" width=\"100%\" style=\"padding:20px;margin:0 0 20px 0;border-radius:10px;font-size:36px;text-align:center;background:#d9f6ff;border:1px solid #92bfd0\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td>📖<p style=\"font-size:13px;line-height:24px;margin:16px 0;text-align:left\">Want to go beyond the square cube? Draw inspiration from EntropyReversed's <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Pulsating Tesseract</a>, Josetxu's <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Rainbow Cuboid Loader</a>, or Ana Tudor's <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Pure CSS cuboid jellyfish</a>.</p>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                                <table align=\"center\" width=\"100%\" style=\"padding:20px;margin:0 0 20px 0;border-radius:10px;font-size:36px;text-align:center;background:#d9f6ff;border:1px solid #92bfd0\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td>📖<p style=\"font-size:13px;line-height:24px;margin:16px 0;text-align:left\">Did that spherical cubes concept pique your interest? Explore Ryan Mulligan's <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Cube Sphere</a>, Munir Safi's <a style=\"color:#15c;text-decoration:none;cursor:pointer\">3D Sphere to Cube Animation With Virtual Trackball</a> and Ana Tudor's <a style=\"color:#15c;text-decoration:none;cursor:pointer\">Infinitely unpack prism</a> for more mindbending cube concepts that test the boundaries of how shapes interact with each other.</p>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"margin:40px 0 120px 0;text-align:center\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td align=\"left\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:62px;v-text-anchor:middle;width:330px;\" arcsize=\"6%\"  strokeweight=\"1px\" fillcolor=#222>\n            <w:anchorlock/>\n            <center style=\"font-size:26px;\">\n            Go to Challenge Page\n            </center></v:roundrect>\n            <![endif]--></span><a style=\"-webkit-text-size-adjust:none;border-radius:4px;display:inline-block;font-size:26px;line-height:60px;max-width:330px;text-align:center;text-decoration:none;width:100%;background-color:#222;mso-hide:all\" color=\"#15c\">Go to Challenge Page</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"background:#fff;color:#505050;padding:0 24px;margin-bottom:48px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:13px;line-height:24px;margin:16px 0\">You can adjust your <a style=\"color:#505050;text-decoration:underline;cursor:pointer\">email preferences</a> any time, or <a style=\"color:#505050;text-decoration:underline;cursor:pointer\">instantly opt out</a> of emails of this kind. Need help with anything? Hit up <a style=\"color:#505050;text-decoration:underline;cursor:pointer\">support</a>.</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_3 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#f6f9fc;padding:10px 0\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Dropbox reset your password<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;background-color:#ffffff;border:1px solid #f0f0f0;padding:45px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\"><img alt=\"Dropbox\" src=\"https://jsx.email/assets/demo/dropbox-logo.png\" width=\"40\" height=\"33\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:16px;line-height:26px;margin:16px 0;font-family:'Open Sans', 'HelveticaNeue-Light', 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;font-weight:300;color:#404040\">Hi Bruce,</p>\n                        <p style=\"font-size:16px;line-height:26px;margin:16px 0;font-family:'Open Sans', 'HelveticaNeue-Light', 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;font-weight:300;color:#404040\">Someone recently requested a password change for your Dropbox account. If this was you, you can set a new password here:</p>\n                        <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td align=\"left\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:42px;v-text-anchor:middle;width:210px;\" arcsize=\"9%\"  strokeweight=\"1px\" fillcolor=#007ee6>\n            <w:anchorlock/>\n            <center style=\"font-size:15px;color:#fff;\">\n            Reset password\n            </center></v:roundrect>\n            <![endif]--></span><a href=\"https://dropbox.com\" style=\"-webkit-text-size-adjust:none;border-radius:4px;display:inline-block;font-size:15px;line-height:40px;max-width:210px;text-align:center;text-decoration:none;width:100%;background-color:#007ee6;color:#fff;mso-hide:all\">Reset password</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <p style=\"font-size:16px;line-height:26px;margin:16px 0;font-family:'Open Sans', 'HelveticaNeue-Light', 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;font-weight:300;color:#404040\">If you don't want to change your password or didn't request this, just ignore and delete this message.</p>\n                        <p style=\"font-size:16px;line-height:26px;margin:16px 0;font-family:'Open Sans', 'HelveticaNeue-Light', 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;font-weight:300;color:#404040\">To keep your account secure, please don't forward this email to anyone. See our Help Center for <a href=\"https://dropbox.com\" style=\"color:#067df7;text-decoration:underline\">more security tips.</a></p>\n                        <p style=\"font-size:16px;line-height:26px;margin:16px 0;font-family:'Open Sans', 'HelveticaNeue-Light', 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif;font-weight:300;color:#404040\">Happy Dropboxing!</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_4 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff;color:#24292e;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Helvetica,Arial,sans-serif,&#x22;Apple Color Emoji&#x22;,&#x22;Segoe UI Emoji&#x22;\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">A fine-grained personal access token has been added to your account<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;width:480px;margin:0 auto;padding:20px 0 48px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\"><img alt=\"Github\" src=\"https://jsx.email/assets/demo/github.png\" width=\"32\" height=\"32\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                <p style=\"font-size:24px;line-height:1.25;margin:16px 0\"><strong>@Batman</strong>, a personal access was created on your account.</p>\n                <table align=\"center\" width=\"100%\" style=\"padding:24px;border:solid 1px #dedede;border-radius:5px;text-align:center\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:24px;margin:0 0 10px 0;text-align:left\">Hey <strong>Batman</strong>!</p>\n                        <p style=\"font-size:14px;line-height:24px;margin:0 0 10px 0;text-align:left\">A fine-grained personal access token (<a style=\"color:#067df7;text-decoration:none\">resend</a>) was recently added to your account.</p>\n                        <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td align=\"left\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:42px;v-text-anchor:middle;width:152px;\" arcsize=\"19%\"  strokeweight=\"1px\" fillcolor=#28a745>\n            <w:anchorlock/>\n            <center style=\"font-size:14px;color:#fff;\">\n            View your token\n            </center></v:roundrect>\n            <![endif]--></span><a style=\"-webkit-text-size-adjust:none;border-radius:8px;display:inline-block;font-size:14px;line-height:40px;max-width:152px;text-align:center;text-decoration:none;width:100%;background-color:#28a745;color:#fff;mso-hide:all\">View your token</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:14px;line-height:24px;margin:16px 0;text-align:center\"><a style=\"color:#0366d6;text-decoration:none;font-size:12px\">Your security audit log</a> ・ <a style=\"color:#0366d6;text-decoration:none;font-size:12px\">Contact support</a></p>\n                <p style=\"font-size:12px;line-height:24px;margin:16px 0;color:#6a737d;text-align:center;margin-top:60px\">GitHub, Inc. ・88 Colin P Kelly Jr Street ・San Francisco, CA 94107</p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_5 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,Oxygen-Sans,Ubuntu,Cantarell,&#x22;Helvetica Neue&#x22;,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Your login code for Linear<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;margin:0 auto;padding:20px 0 48px;width:560px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\"><img alt=\"Linear\" src=\"https://jsx.email/assets/demo/linear-logo.png\" width=\"42\" height=\"42\" style=\"border:none;display:block;outline:none;text-decoration:none;border-radius:21px;width:42px;height:42px\">\n                <h1 style=\"font-size:24px;letter-spacing:-0.5px;line-height:1.3;font-weight:400;color:#484848;padding:17px 0 0\">Your login code for Linear</h1>\n                <table align=\"center\" width=\"100%\" style=\"padding:27px 0 27px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td align=\"left\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:40px;v-text-anchor:middle;width:152px;\" arcsize=\"7%\"  strokeweight=\"1px\" fillcolor=#5e6ad2>\n            <w:anchorlock/>\n            <center style=\"font-size:15px;color:#fff;\">\n            Login to Linear\n            </center></v:roundrect>\n            <![endif]--></span><a href=\"https://linear.app\" style=\"-webkit-text-size-adjust:none;border-radius:3px;display:inline-block;font-size:15px;line-height:38px;max-width:152px;text-align:center;text-decoration:none;width:100%;background-color:#5e6ad2;color:#fff;mso-hide:all\">Login to Linear</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:15px;line-height:1.4;margin:0 0 15px;color:#3c4149\">This link and code will only be valid for the next 5 minutes. If the link does not work, you can use the login verification code directly:</p><code style=\"font-family:monospace;font-weight:700;padding:1px 4px;background-color:#dfe1e4;letter-spacing:-0.3px;font-size:21px;border-radius:4px;color:#3c4149\">tt226-5398x</code>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#dfe1e4;margin:42px 0 26px\"><a href=\"https://linear.app\" style=\"color:#b4becc;text-decoration:none;font-size:14px\">Linear</a>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_6 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Log in with this magic link<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;padding-left:12px;padding-right:12px;margin:0 auto\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <h1 style=\"color:#333;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;font-size:24px;font-weight:bold;margin:40px 0;padding:0\">Login</h1><a href=\"https://notion.so\" target=\"_blank\" style=\"color:#2754C5;text-decoration:underline;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;font-size:14px;display:block;margin-bottom:16px\">Click here to log in with this magic link</a>\n                <p style=\"font-size:14px;line-height:24px;margin:24px 0;color:#333;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;margin-bottom:14px\">Or, copy and paste this temporary login code:</p><code style=\"display:inline-block;padding:16px 4.5%;width:90.5%;background-color:#f4f4f4;border-radius:5px;border:1px solid #eee;color:#333\">sparo-ndigo-amurt-secan</code>\n                <p style=\"font-size:14px;line-height:24px;margin:24px 0;color:#ababab;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;margin-top:14px;margin-bottom:16px\">If you didn't try to login, you can safely ignore this email.</p>\n                <p style=\"font-size:14px;line-height:24px;margin:24px 0;color:#ababab;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;margin-top:12px;margin-bottom:38px\">Hint: You can set a permanent password in Settings &#x26; members → My account.</p><img alt=\"Notion's Logo\" src=\"https://jsx.email/assets/demo/notion-logo.png\" width=\"32\" height=\"32\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                <p style=\"font-size:12px;line-height:22px;margin:16px 0;color:#898989;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;margin-top:12px;margin-bottom:24px\"><a href=\"https://notion.so\" target=\"_blank\" style=\"color:#898989;text-decoration:underline;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;font-size:14px\">Notion.so</a>, the all-in-one-workspace<br>for your notes, tasks, wikis, and databases.</p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_7 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,Oxygen-Sans,Ubuntu,Cantarell,&#x22;Helvetica Neue&#x22;,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Log in with this magic link.<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;margin:0 auto;padding:20px 25px 48px;background-image:url(&#x22;/assets/raycast-bg.png&#x22;);background-position:bottom;background-repeat:no-repeat, no-repeat\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\"><img alt=\"Raycast\" src=\"https://jsx.email/assets/demo/raycast-logo.png\" width=\"48\" height=\"48\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                <h1 style=\"font-size:28px;font-weight:bold;margin-top:48px\">🪄 Your magic link</h1>\n                <table align=\"center\" width=\"100%\" style=\"margin:24px 0\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:16px;line-height:26px;margin:16px 0\"><a href=\"https://raycast.com\" style=\"color:#FF6363;text-decoration:none\">👉 Click here to sign in 👈</a></p>\n                        <p style=\"font-size:16px;line-height:26px;margin:16px 0\">If you didn't request this, please ignore this email.</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:16px;line-height:26px;margin:16px 0\">Best,<br>- Raycast Team</p>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#dddddd;margin-top:48px\"><img src=\"https://jsx.email/assets/demo/raycast-logo.png\" width=\"32\" height=\"32\" style=\"border:none;display:block;outline:none;text-decoration:none;-webkit-filter:grayscale(100%);filter:grayscale(100%);margin:20px 0\">\n                <p style=\"font-size:12px;line-height:24px;margin:16px 0;color:#8898aa;margin-left:4px\">Raycast Technologies Inc.</p>\n                <p style=\"font-size:12px;line-height:24px;margin:16px 0;color:#8898aa;margin-left:4px\">2093 Philadelphia Pike #3222, Claymont, DE 19703</p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_8 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#efeef1;font-family:HelveticaNeue,Helvetica,Arial,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">You updated the password for your Twitch account<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;width:580px;margin:30px auto;background-color:#ffffff\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" style=\"display:flex;justify-content:center;aling-items:center;padding:30px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img src=\"https://jsx.email/assets/demo/twitch-logo.png\" width=\"114\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"width:100%;display:flex\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td style=\"border-bottom:1px solid rgb(238,238,238);width:249px\"></td>\n                              <td style=\"border-bottom:1px solid rgb(145,71,255);width:102px\"></td>\n                              <td style=\"border-bottom:1px solid rgb(238,238,238);width:249px\"></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"padding:5px 50px 10px 60px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:1.5;margin:16px 0\">Hi Batman,</p>\n                        <p style=\"font-size:14px;line-height:1.5;margin:16px 0\">You updated the password for your Twitch account on Jun 23, 2022, 12:06:00 PM. If this was you, then no further action is required.</p>\n                        <p style=\"font-size:14px;line-height:1.5;margin:16px 0\">However if you did NOT perform this password change, please <a href=\"#\" style=\"color:#067df7;text-decoration:underline\">reset your account password</a> immediately.</p>\n                        <p style=\"font-size:14px;line-height:1.5;margin:16px 0\">Remember to use a password that is both strong and unique to your Twitch account. To learn more about how to create a strong and unique password, <a href=\"#\" style=\"color:#067df7;text-decoration:underline\">click here.</a></p>\n                        <p style=\"font-size:14px;line-height:1.5;margin:16px 0\">Still have questions? Please contact <a href=\"#\" style=\"color:#067df7;text-decoration:underline\">Twitch Support</a></p>\n                        <p style=\"font-size:14px;line-height:1.5;margin:16px 0\">Thanks,<br>Twitch Support Team</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n    <table align=\"center\" width=\"100%\" style=\"width:580px;margin:0 auto\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n      <tbody>\n        <tr>\n          <td>\n            <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n              <tbody style=\"width:100%\">\n                <tr style=\"width:100%\">\n                  <td align=\"right\" style=\"width:50%;padding-right:8px\"><img src=\"https://jsx.email/assets/demo/twitch-icon-twitter.png\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                  <td align=\"left\" style=\"width:50%;padding-left:8px\"><img src=\"https://jsx.email/assets/demo/twitch-icon-facebook.png\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                </tr>\n              </tbody>\n            </table>\n            <p style=\"font-size:14px;line-height:24px;margin:16px 0;text-align:center;color:#706a7b\">© 2022 Twitch, All Rights Reserved <br>350 Bush Street, 2nd Floor, San Francisco, CA, 94104 - USA</p>\n            <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n              <tbody style=\"width:100%\">\n                <tr style=\"width:100%\"></tr>\n              </tbody>\n            </table>\n          </td>\n        </tr>\n      </tbody>\n    </table>\n  </body>\n\n</html>";
-
-const __vite_glob_0_9 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#dbddde;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,Oxygen-Sans,Ubuntu,Cantarell,&#x22;Helvetica Neue&#x22;,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Google Play developers<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;margin:30px auto;width:610px;background-color:#fff;border-radius:5px;overflow:hidden\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td><img alt=\"Google Play developers header blue transparent\" src=\"https://jsx.email/assets/demo/google-play-header.png\" width=\"305\" height=\"28\" style=\"border:none;display:block;outline:none;text-decoration:none;margin-top:-1px\"><img alt=\"Google Play\" src=\"https://jsx.email/assets/demo/google-play-logo.png\" width=\"155\" height=\"31\" style=\"border:none;display:block;outline:none;text-decoration:none;padding:0 40px\"></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"padding:0 40px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#e8eaed;margin:20px 0\">\n                        <p style=\"font-size:14px;line-height:26px;margin:16px 0;font-weight:700;color:#004dcf\">DEVELOPER UPDATE</p>\n                        <p style=\"font-size:14px;line-height:22px;margin:16px 0;color:#3c4043\">Hello Google Play Developer,</p>\n                        <p style=\"font-size:14px;line-height:22px;margin:16px 0;color:#3c4043\">We strive to make Google Play a safe and trusted experience for users.</p>\n                        <p style=\"font-size:14px;line-height:22px;margin:16px 0;color:#3c4043\">We've added clarifications to our <a href=\"https://notifications.google.com\" style=\"color:#004dcf;text-decoration:none;font-size:14px;line-height:22px\">Target API Level policy</a>. Because this is a clarification, our enforcement standards and practices for this policy remain the same.</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"padding-left:40px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:22px;margin:16px 0;color:#3c4043\">We’re noting exceptions to the <a href=\"https://notifications.google.com\" style=\"color:#004dcf;text-decoration:none;font-size:14px;line-height:22px\">Target API Level policy</a>, which can be found in our updated <a href=\"https://notifications.google.com\" style=\"color:#004dcf;text-decoration:none;font-size:14px;line-height:22px\">Help Center article.</a>These exceptions include permanently private apps and apps that target automotive or wearables form factors and are bundled within the same package. <a href=\"https://notifications.google.com\" style=\"color:#004dcf;text-decoration:none;font-size:14px;line-height:22px\">Learn more</a></p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"padding:0 40px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:22px;margin:16px 0;color:#3c4043\">We’re also extending the deadline to give you more time to adjust to these changes. Now, apps that target API level 29 or below will start experiencing reduced distribution starting <b>Jan 31, 2023</b> instead of Nov 1, 2022. If you need more time to update your app, you can request an extension to keep your app discoverable to all users until May 1, 2023.</p>\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#e8eaed;margin:20px 0\">\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"padding:0 40px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:22px;margin:16px 0;color:#3c4043\">Thank you,</p>\n                        <p style=\"font-size:20px;line-height:22px;margin:16px 0;color:#3c4043\">The Google Play team</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"background-color:#f0fcff;width:90%;border-radius:5px;overflow:hidden;padding-left:20px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:22px;margin:16px 0;color:#3c4043\">Connect with us</p>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                        <table align=\"left\" width=\"100%\" style=\"width:84px;float:left\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td style=\"padding-right:4px\"><a href=\"https://notifications.google.com\" style=\"color:#067df7;text-decoration:none\"><img src=\"https://jsx.email/assets/demo/google-play-chat.png\" width=\"28\" height=\"28\" style=\"border:none;display:block;outline:none;text-decoration:none\"></a></td>\n                              <td style=\"padding-right:4px\"><a href=\"https://notifications.google.com\" style=\"color:#067df7;text-decoration:none\"><img src=\"https://jsx.email/assets/demo/google-play-icon.png\" width=\"28\" height=\"28\" style=\"border:none;display:block;outline:none;text-decoration:none\"></a></td>\n                              <td style=\"padding-right:4px\"><a href=\"https://notifications.google.com\" style=\"color:#067df7;text-decoration:none\"><img src=\"https://jsx.email/assets/demo/google-play-academy.png\" width=\"28\" height=\"28\" style=\"border:none;display:block;outline:none;text-decoration:none\"></a></td>\n                            </tr>\n                          </tbody>\n                        </table><img src=\"https://jsx.email/assets/demo/google-play-footer.png\" width=\"540\" height=\"48\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"padding:0 40px;padding-bottom:30px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:12px;line-height:22px;margin:0;color:#3c4043;text-align:center\">© 2022 Google LLC 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA</p>\n                        <p style=\"font-size:12px;line-height:22px;margin:0;color:#3c4043;text-align:center\">You have received this mandatory email service announcement to update you about important changes to your Google Play Developer account.</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_10 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,Oxygen-Sans,Ubuntu,Cantarell,&#x22;Helvetica Neue&#x22;,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Get your order summary, estimated delivery date and more<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;margin:10px auto;width:600px;border:1px solid #E5E5E5\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" style=\"padding:22px 40px;background-color:#F7F7F7\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td>\n                                <p style=\"font-size:14px;line-height:2;margin:0;font-weight:bold\">Tracking Number</p>\n                                <p style=\"font-size:14px;line-height:1.4;margin:12px 0 0 0;font-weight:500;color:#6F6F6F\">1ZV218970300071628</p>\n                              </td>\n                              <td align=\"right\"><a style=\"color:#000;text-decoration:none;border:1px solid #929292;font-size:16px;padding:10px 0px;width:220px;display:block;text-align:center;font-weight:500\">Track Package</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0\">\n                <table align=\"center\" width=\"100%\" style=\"padding:40px 74px;text-align:center\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img alt=\"Nike\" src=\"https://jsx.email/assets/demo/nike-logo.png\" width=\"66\" height=\"22\" style=\"border:none;display:block;outline:none;text-decoration:none;margin:auto\">\n                        <h1 style=\"font-size:32px;line-height:1.3;font-weight:700;text-align:center;letter-spacing:-1px\">It's On Its Way.</h1>\n                        <p style=\"font-size:14px;line-height:2;margin:0;color:#747474;font-weight:500\">You order's is on its way. Use the link above to track its progress.</p>\n                        <p style=\"font-size:14px;line-height:2;margin:0;color:#747474;font-weight:500;margin-top:24px\">We´ve also charged your payment method for the cost of your order and will be removing any authorization holds. For payment details, please visit your Orders page on Nike.com or in the Nike app.</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0\">\n                <table align=\"center\" width=\"100%\" style=\"padding-left:40px;padding-right:40px;padding-top:22px;padding-bottom:22px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:15px;line-height:2;margin:0;font-weight:bold\">Shipping to: Bruce Wayne</p>\n                        <p style=\"font-size:14px;line-height:2;margin:0;color:#747474;font-weight:500\">2125 Chestnut St, San Francisco, CA 94123</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0\">\n                <table align=\"center\" width=\"100%\" style=\"padding-left:40px;padding-right:40px;padding-top:40px;padding-bottom:40px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td><img alt=\"Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey\" src=\"https://jsx.email/assets/demo/nike-product.png\" width=\"260px\" style=\"border:none;display:block;outline:none;text-decoration:none;float:left\"></td>\n                              <td style=\"vertical-align:top;padding-left:12px\">\n                                <p style=\"font-size:14px;line-height:2;margin:0;font-weight:500\">Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey</p>\n                                <p style=\"font-size:14px;line-height:2;margin:0;color:#747474;font-weight:500\">Size L (12–14)</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0\">\n                <table align=\"center\" width=\"100%\" style=\"padding-left:40px;padding-right:40px;padding-top:22px;padding-bottom:22px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" style=\"display:inline-flex;margin-bottom:40px\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td style=\"width:170px\">\n                                <p style=\"font-size:14px;line-height:2;margin:0;font-weight:bold\">Order Number</p>\n                                <p style=\"font-size:14px;line-height:1.4;margin:12px 0 0 0;font-weight:500;color:#6F6F6F\">C0106373851</p>\n                              </td>\n                              <td>\n                                <p style=\"font-size:14px;line-height:2;margin:0;font-weight:bold\">Order Date</p>\n                                <p style=\"font-size:14px;line-height:1.4;margin:12px 0 0 0;font-weight:500;color:#6F6F6F\">Sep 22, 2022</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"center\"><a style=\"color:#000;text-decoration:none;border:1px solid #929292;font-size:16px;padding:10px 0px;width:220px;display:block;text-align:center;font-weight:500\">Order Status</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0\">\n                <table align=\"center\" width=\"100%\" style=\"padding-top:22px;padding-bottom:22px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:32px;line-height:1.3;margin:16px 0;font-weight:700;text-align:center;letter-spacing:-1px\">Top Picks For You</p>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" style=\"padding:20px 0\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"center\" style=\"vertical-align:top;text-align:left;padding-left:4px;padding-right:2px\"><img alt=\"Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey\" src=\"https://jsx.email/assets/demo/nike-recomendation-1.png\" width=\"100%\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                                <p style=\"font-size:15px;line-height:1;margin:0;padding-left:10px;padding-right:10px;padding-top:12px;font-weight:500\">USWNT 2022/23 Stadium Home</p>\n                                <p style=\"font-size:15px;line-height:1;margin:0;padding-left:10px;padding-right:10px;padding-top:4px;color:#747474\">Women's Nike Dri-FIT Soccer Jersey</p>\n                              </td>\n                              <td align=\"center\" style=\"vertical-align:top;text-align:left;padding-left:2px;padding-right:2px\"><img alt=\"Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey\" src=\"https://jsx.email/assets/demo/nike-recomendation-2.png\" width=\"100%\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                                <p style=\"font-size:15px;line-height:1;margin:0;padding-left:10px;padding-right:10px;padding-top:12px;font-weight:500\">Brazil 2022/23 Stadium Goalkeeper</p>\n                                <p style=\"font-size:15px;line-height:1;margin:0;padding-left:10px;padding-right:10px;padding-top:4px;color:#747474\">Men's Nike Dri-FIT Short-Sleeve Football Shirt</p>\n                              </td>\n                              <td align=\"center\" style=\"vertical-align:top;text-align:left;padding-left:2px;padding-right:2px\"><img alt=\"Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey\" src=\"https://jsx.email/assets/demo/nike-recomendation-4.png\" width=\"100%\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                                <p style=\"font-size:15px;line-height:1;margin:0;padding-left:10px;padding-right:10px;padding-top:12px;font-weight:500\">FFF</p>\n                                <p style=\"font-size:15px;line-height:1;margin:0;padding-left:10px;padding-right:10px;padding-top:4px;color:#747474\">Women's Soccer Jacket</p>\n                              </td>\n                              <td align=\"center\" style=\"vertical-align:top;text-align:left;padding-left:2px;padding-right:4px\"><img alt=\"Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey\" src=\"https://jsx.email/assets/demo/nike-recomendation-4.png\" width=\"100%\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                                <p style=\"font-size:15px;line-height:1;margin:0;padding-left:10px;padding-right:10px;padding-top:12px;font-weight:500\">FFF</p>\n                                <p style=\"font-size:15px;line-height:1;margin:0;padding-left:10px;padding-right:10px;padding-top:4px;color:#747474\">Women's Nike Pre-Match Football Top</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0\">\n                <table align=\"center\" width=\"100%\" style=\"padding-left:20px;padding-right:20px;padding-top:20px;background-color:#F7F7F7\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:14px;line-height:24px;margin:16px 0;padding-left:20px;padding-right:20px;font-weight:bold\">Get Help</p>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" style=\"padding-top:22px;padding-bottom:22px;padding-left:20px;padding-right:20px\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td colspan=\"1\" style=\"width:33%\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-size:13.5px;margin-top:0;font-weight:500\">Shipping Status</a></td>\n                              <td colspan=\"1\" style=\"width:33%\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-size:13.5px;margin-top:0;font-weight:500\">Shipping &#x26; Delivery</a></td>\n                              <td colspan=\"1\" style=\"width:33%\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-size:13.5px;margin-top:0;font-weight:500\">Returns &#x26; Exchanges</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" style=\"padding-top:0;padding-bottom:22px;padding-left:20px;padding-right:20px\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td colspan=\"1\" style=\"width:33%\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-size:13.5px;margin-top:0;font-weight:500\">How to Return</a></td>\n                              <td colspan=\"2\" style=\"width:66%\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-size:13.5px;margin-top:0;font-weight:500\">Contact Options</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0\">\n                        <table align=\"center\" width=\"100%\" style=\"padding-left:20px;padding-right:20px;padding-top:32px;padding-bottom:22px\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td>\n                                <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                                  <tbody style=\"width:100%\">\n                                    <tr style=\"width:100%\">\n                                      <td style=\"width:16px\"><img src=\"https://jsx.email/assets/demo/nike-phone.png\" width=\"16px\" height=\"26px\" style=\"border:none;display:block;outline:none;text-decoration:none;padding-right:14px\"></td>\n                                      <td>\n                                        <p style=\"font-size:13.5px;line-height:24px;margin:16px 0;margin-top:0;font-weight:500;color:#000;margin-bottom:0\">1-800-806-6453</p>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                              </td>\n                              <td>\n                                <p style=\"font-size:13.5px;line-height:24px;margin:16px 0;margin-top:0;font-weight:500;color:#000;margin-bottom:0\">4 am - 11 pm PT</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0\">\n                <table align=\"center\" width=\"100%\" style=\"padding-top:22px;padding-bottom:22px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:32px;line-height:1.3;margin:16px 0;font-weight:700;text-align:center;letter-spacing:-1px\">Nike.com</p>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" style=\"width:370px;margin:auto;padding-top:12px\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"center\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-weight:500\">Men</a></td>\n                              <td align=\"center\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-weight:500\">Women</a></td>\n                              <td align=\"center\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-weight:500\">Kids</a></td>\n                              <td align=\"center\"><a href=\"/\" style=\"color:#000;text-decoration:none;font-weight:500\">Customize</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#E5E5E5;margin:0;margin-top:12px\">\n                <table align=\"center\" width=\"100%\" style=\"padding-top:22px;padding-bottom:22px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" style=\"width:166px;margin:auto\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td>\n                                <p style=\"font-size:13px;line-height:24px;margin:0;color:#AFAFAF;text-align:center\">Web Version</p>\n                              </td>\n                              <td>\n                                <p style=\"font-size:13px;line-height:24px;margin:0;color:#AFAFAF;text-align:center\">Privacy Policy</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <p style=\"font-size:13px;line-height:24px;margin:0;color:#AFAFAF;text-align:center;padding-top:30px;padding-bottom:30px\">Please contact us if you have any questions. (If you reply to this email, we won't be able to see it.)</p>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                        <p style=\"font-size:13px;line-height:24px;margin:0;color:#AFAFAF;text-align:center\">© 2022 Nike, Inc. All Rights Reserved.</p>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                        <p style=\"font-size:13px;line-height:24px;margin:0;color:#AFAFAF;text-align:center\">NIKE, INC. One Bowerman Drive, Beaverton, Oregon 97005, USA.</p>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_11 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff;font-family:HelveticaNeue,Helvetica,Arial,sans-serif\">\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;background-color:#ffffff;border:1px solid #eee;border-radius:5px;box-shadow:0 5px 10px rgba(20,50,70,.2);margin-top:20px;width:360px;margin:0 auto;padding:68px 0 130px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\"><img alt=\"Plaid\" src=\"https://jsx.email/assets/demo/plaid-logo.png\" width=\"212\" height=\"88\" style=\"border:none;display:block;outline:none;text-decoration:none;margin:0 auto\">\n                <p style=\"font-size:11px;line-height:16px;margin:16px 8px 8px 8px;color:#0a85ea;font-weight:700;font-family:HelveticaNeue,Helvetica,Arial,sans-serif;height:16px;letter-spacing:0;text-transform:uppercase;text-align:center\">Verify Your Identity</p>\n                <h1 style=\"color:#000;display:inline-block;font-family:HelveticaNeue-Medium,Helvetica,Arial,sans-serif;font-size:20px;font-weight:500;line-height:24px;margin-bottom:0;margin-top:0;text-align:center\">Enter the following code to finish linking Venmo.</h1>\n                <table align=\"center\" width=\"100%\" style=\"background:rgba(0,0,0,.05);border-radius:4px;margin:16px auto 14px;vertical-align:middle;width:280px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:32px;line-height:40px;margin:0 auto;color:#000;display:inline-block;font-family:HelveticaNeue-Bold;font-weight:700;letter-spacing:6px;padding-bottom:8px;padding-top:8px;width:100%;text-align:center\">144833</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:15px;line-height:23px;margin:0;color:#444;font-family:HelveticaNeue,Helvetica,Arial,sans-serif;letter-spacing:0;padding:0 40px;text-align:center\">Not expecting this email?</p>\n                <p style=\"font-size:15px;line-height:23px;margin:0;color:#444;font-family:HelveticaNeue,Helvetica,Arial,sans-serif;letter-spacing:0;padding:0 40px;text-align:center\">Contact <a href=\"mailto:login@plaid.com\" style=\"color:#444;text-decoration:underline\">login@plaid.com</a> if you did not request this code.</p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n    <p style=\"font-size:12px;line-height:23px;margin:0;color:#000;font-weight:800;letter-spacing:0;margin-top:20px;font-family:HelveticaNeue,Helvetica,Arial,sans-serif;text-align:center;text-transform:uppercase\">Securely powered by Plaid.</p>\n  </body>\n\n</html>";
-
-const __vite_glob_0_12 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff;margin:0 auto;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Confirm your email address<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;margin:0 auto\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" style=\"margin-top:32px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img alt=\"Slack\" src=\"https://jsx.email/assets/demo/slack-logo.png\" width=\"120\" height=\"36\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                    </tr>\n                  </tbody>\n                </table>\n                <h1 style=\"color:#1d1c1d;font-size:36px;font-weight:700;margin:30px 0;padding:0;line-height:42px\">Confirm your email address</h1>\n                <p style=\"font-size:20px;line-height:28px;margin:16px 0;margin-bottom:30px\">Your confirmation code is below - enter it in your open browser window and we'll help you get signed in.</p>\n                <table align=\"center\" width=\"100%\" style=\"background:rgb(245, 244, 245);border-radius:4px;margin-right:50px;margin-bottom:30px;padding:43px 23px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p style=\"font-size:30px;line-height:24px;margin:16px 0;text-align:center;vertical-align:middle\">DJZ-TLX</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:14px;line-height:24px;margin:16px 0;color:#000\">If you didn't request this email, there's nothing to worry about - you can safely ignore it.</p>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" style=\"margin-bottom:32px;padding-left:8px;padding-right:8px;width:100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td style=\"width:66%\"><img alt=\"Slack\" src=\"https://jsx.email/assets/demo/slack-logo.png\" width=\"120\" height=\"36\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                              <td>\n                                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td>\n                                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                                          <tbody style=\"width:100%\">\n                                            <tr style=\"width:100%\">\n                                              <td><a href=\"/\" style=\"color:#067df7;text-decoration:none\"><img alt=\"Slack\" src=\"https://jsx.email/assets/demo/slack-twitter.png\" width=\"32\" height=\"32\" style=\"border:none;display:inline;outline:none;text-decoration:none;margin-left:32px\"></a></td>\n                                              <td><a href=\"/\" style=\"color:#067df7;text-decoration:none\"><img alt=\"Slack\" src=\"https://jsx.email/assets/demo/slack-facebook.png\" width=\"32\" height=\"32\" style=\"border:none;display:inline;outline:none;text-decoration:none;margin-left:32px\"></a></td>\n                                              <td><a href=\"/\" style=\"color:#067df7;text-decoration:none\"><img alt=\"Slack\" src=\"https://jsx.email/assets/demo/slack-linkedin.png\" width=\"32\" height=\"32\" style=\"border:none;display:inline;outline:none;text-decoration:none;margin-left:32px\"></a></td>\n                                            </tr>\n                                          </tbody>\n                                        </table>\n                                      </td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><a href=\"https://slackhq.com\" rel=\"noopener noreferrer\" target=\"_blank\" style=\"color:#b7b7b7;text-decoration:underline\">Our blog</a>   |   <a href=\"https://slack.com/legal\" rel=\"noopener noreferrer\" target=\"_blank\" style=\"color:#b7b7b7;text-decoration:underline\">Policies</a>   |   <a href=\"https://slack.com/help\" rel=\"noopener noreferrer\" target=\"_blank\" style=\"color:#b7b7b7;text-decoration:underline\">Help center</a>   |   <a href=\"https://slack.com/community\" rel=\"noopener noreferrer\" data-auth=\"NotApplicable\" data-linkindex=\"6\" target=\"_blank\" style=\"color:#b7b7b7;text-decoration:underline\">Slack Community</a>\n                        <p style=\"font-size:12px;line-height:15px;margin:16px 0;color:#b7b7b7;text-align:left;margin-bottom:50px\">©2022 Slack Technologies, LLC, a Salesforce company. <br>500 Howard Street, San Francisco, CA 94105, USA <br><br>All rights reserved.</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_13 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#f3f3f5;font-family:HelveticaNeue,Helvetica,Arial,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Stack overflow tips for searching<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:680px;width:100%;margin:0 auto;background-color:#ffffff\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" style=\"display:flex;background:#f3f3f5;padding:20px 30px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img src=\"https://jsx.email/assets/demo/stack-overflow-logo.png\" width=\"146\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"border-radius:5px 5px 0 0;display:flex;flex-direciont:column;background-color:#2b2d6e\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td style=\"padding:20px 30px 15px\">\n                                <h1 style=\"color:#fff;font-size:27px;font-weight:bold;line-height:27px\">Find what you want, faster</h1>\n                                <p style=\"font-size:17px;line-height:24px;margin:16px 0;color:#fff\">Tips and tricks for searching on Stack Overflow</p>\n                              </td>\n                              <td style=\"padding:30px 10px\"><img src=\"https://jsx.email/assets/demo/stack-overflow-header.png\" width=\"340\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"padding:30px 30px 40px 30px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <h2 style=\"margin:0 0 15px;font-weight:bold;font-size:21px;line-height:21px;color:#0c0d0e\">Searching for solutions</h2>\n                        <p style=\"font-size:15px;line-height:21px;margin:16px 0;color:#3c3f44\">With more than 18 million questions, it's possible that someone has already provided a solution to the problem you're facing. </p>\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;margin:30px 0\">\n                        <h2 style=\"margin:0 0 15px;font-weight:bold;font-size:21px;line-height:21px;color:#0c0d0e\">Use the search bar at the top of the page to find what you need</h2>\n                        <p style=\"font-size:15px;line-height:21px;margin:16px 0;color:#3c3f44\">Here are a few simple search tips to get you started:</p>\n                        <ul>\n                          <li>\n                            <p style=\"font-size:15px;line-height:21px;margin:16px 0;color:#3c3f44\">To find a specific phrase, enter it in quotes: \"local storage\"</p>\n                          </li>\n                          <li>\n                            <p style=\"font-size:15px;line-height:21px;margin:16px 0;color:#3c3f44\">To search within specific tag(s), enter them in square brackets: [javascript]</p>\n                          </li>\n                          <li>\n                            <p style=\"font-size:15px;line-height:21px;margin:16px 0;color:#3c3f44\">Combine them to get even more precise results - [javascript] \"local storage\" searches for the phrase “local storage” in questions that have the [javascript] tag</p>\n                          </li>\n                        </ul>\n                        <p style=\"font-size:15px;line-height:21px;margin:16px 0;color:#3c3f44\">The more information you can put in the search bar, the more likely you will be to either find the answer you need or feel confident that no one else has asked the question before.</p>\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;margin:30px 0\">\n                        <h2 style=\"margin:0 0 15px;font-weight:bold;font-size:21px;line-height:21px;color:#0c0d0e\">Take a break and read about the worst coder in the world</h2>\n                        <table align=\"center\" width=\"100%\" style=\"margin-top:24px;display:block\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td><a href=\"https://stackoverflow.blog/2019/10/22/\" style=\"color:#fff;text-decoration:none;background-color:#0095ff;border:1px solid #0077cc;font-size:17px;line-height:17px;padding:13px 17px;border-radius:4px;max-width:120px\">I need a break</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n    <table align=\"center\" width=\"100%\" style=\"width:680px;margin:32px auto 0 auto;padding:0 30px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n      <tbody>\n        <tr>\n          <td>\n            <p style=\"font-size:12px;line-height:15px;margin:0;color:#9199a1\">You're receiving this email because your Stack Overflow activity triggered this tip or reminder.</p><a href=\"/\" style=\"color:#9199a1;text-decoration:underline;display:inline-block;font-size:12px;margin-right:10px;margin-bottom:0;margin-top:8px\">Unsubscribe from emails like this </a><a href=\"/\" style=\"color:#9199a1;text-decoration:underline;display:inline-block;font-size:12px;margin-right:10px;margin-bottom:0;margin-top:8px\">Edit email settings </a><a href=\"/\" style=\"color:#9199a1;text-decoration:underline;display:inline-block;font-size:12px;margin-right:10px;margin-bottom:0;margin-top:8px\">Contact us</a><a href=\"/\" style=\"color:#9199a1;text-decoration:underline;display:inline-block;font-size:12px;margin-right:10px;margin-bottom:0;margin-top:8px\">Privacy</a>\n            <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;margin:30px 0;border-color:#d6d8db\"><img src=\"https://jsx.email/assets/demo/stack-overflow-logo-sm.png\" width=\"111\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n            <p style=\"font-size:12px;line-height:15px;margin:4px 0;color:#9199a1\"><strong>Stack Overflow</strong>, 110 William Street, 28th Floor, New York, NY 10038</p>\n            <p style=\"font-size:11px;line-height:11px;margin:0 0 32px 0;border-radius:1px;border:1px solid #d6d9dc;padding:4px 6px 3px 6px;font-family:Consolas,monospace;color:#e06c77;max-width:min-content\">&#x3C;3</p>\n          </td>\n        </tr>\n      </tbody>\n    </table>\n  </body>\n\n</html>";
-
-const __vite_glob_0_14 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n    <style tailwind>\n      /* layer: preflights */\n      /* layer: default */\n      .mx-0 {\n        margin-left: 0;\n        margin-right: 0;\n      }\n\n      .mx-auto {\n        margin-left: auto;\n        margin-right: auto;\n      }\n\n      .my-\\[26px\\] {\n        margin-top: 26px;\n        margin-bottom: 26px;\n      }\n\n      .my-\\[30px\\] {\n        margin-top: 30px;\n        margin-bottom: 30px;\n      }\n\n      .my-\\[40px\\] {\n        margin-top: 40px;\n        margin-bottom: 40px;\n      }\n\n      .my-0 {\n        margin-top: 0;\n        margin-bottom: 0;\n      }\n\n      .my-auto {\n        margin-top: auto;\n        margin-bottom: auto;\n      }\n\n      .mb-\\[32px\\] {\n        margin-bottom: 32px;\n      }\n\n      .mt-\\[32px\\] {\n        margin-top: 32px;\n      }\n\n      .w-\\[465px\\] {\n        width: 465px;\n      }\n\n      .w-full {\n        width: 100%;\n      }\n\n      .border-separate {\n        border-collapse: separate;\n      }\n\n      .border {\n        border-width: 1px;\n      }\n\n      .border-\\[\\#eaeaea\\] {\n        border-color: rgb(234, 234, 234);\n      }\n\n      .rounded {\n        border-radius: 4px;\n      }\n\n      .rounded-full {\n        border-radius: 9999px;\n      }\n\n      .border-solid {\n        border-style: solid;\n      }\n\n      .bg-white {\n        background-color: rgb(255, 255, 255);\n      }\n\n      .p-\\[20px\\] {\n        padding: 20px;\n      }\n\n      .p-0 {\n        padding: 0;\n      }\n\n      .text-center {\n        text-align: center;\n      }\n\n      .\\!text-\\[12px\\] {\n        font-size: 12px !important;\n      }\n\n      .\\!text-\\[14px\\] {\n        font-size: 14px !important;\n      }\n\n      .text-\\[14px\\] {\n        font-size: 14px;\n      }\n\n      .text-\\[24px\\] {\n        font-size: 24px;\n      }\n\n      .text-\\[\\#666666\\] {\n        color: rgb(102, 102, 102);\n      }\n\n      .text-black {\n        color: rgb(0, 0, 0);\n      }\n\n      .text-blue-600 {\n        color: rgb(37, 99, 235);\n      }\n\n      .font-normal {\n        font-weight: 400;\n      }\n\n      .leading-\\[24px\\] {\n        line-height: 24px;\n      }\n\n      .font-sans {\n        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans\", sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\";\n      }\n\n      .no-underline {\n        text-decoration: none;\n      }\n    </style>\n  </head>\n\n  <body class=\"mx-auto my-auto bg-white font-sans\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Join joker on Vercel<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" class=\"mx-auto my-[40px] w-[465px] border-separate rounded border border-solid border-[#eaeaea] p-[20px]\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" class=\"mt-[32px]\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img class=\"mx-auto my-0\" alt=\"Vercel\" src=\"https://jsx.email/assets/demo/vercel-logo.png\" width=\"40\" height=\"37\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                    </tr>\n                  </tbody>\n                </table>\n                <h1 class=\"mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-black\" style>Join <strong>Batmobile</strong> on <strong>Vercel</strong></h1>\n                <p class=\"text-[14px] leading-[24px] text-black\" style=\"font-size:14px;line-height:24px;margin:16px 0\">Hello batman,</p>\n                <p class=\"text-[14px] leading-[24px] text-black\" style=\"font-size:14px;line-height:24px;margin:16px 0\"><strong>joker</strong> (<a href=\"mailto:joker@arkham.com\" class=\"text-blue-600 no-underline\" style=\"color:#067df7;text-decoration:none\">joker@arkham.com</a>) has invited you to the <strong>Batmobile</strong> team on <strong>Vercel</strong>.</p>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td align=\"right\"><img class=\"rounded-full\" src=\"https://jsx.email/assets/demo/batman-adam.jpg\" width=\"64\" height=\"64\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                              <td align=\"center\"><img alt=\"invited you to\" src=\"https://jsx.email/assets/demo/vercel-arrow.png\" width=\"12\" height=\"9\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                              <td align=\"left\"><img class=\"rounded-full\" src=\"https://jsx.email/assets/demo/vercel-team.png\" width=\"64\" height=\"64\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" class=\"mb-[32px] mt-[32px] text-center\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td align=\"center\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:38px;v-text-anchor:middle;width:120px;\" arcsize=\"10%\"  strokeweight=\"1px\" fillcolor=#000000>\n            <w:anchorlock/>\n            <center style=\"font-size:16px;color:#fff;\">\n            Join the team\n            </center></v:roundrect>\n            <![endif]--></span><a href=\"https://vercel.com/teams/invite/foo\" style=\"-webkit-text-size-adjust:none;border-radius:4px;display:inline-block;font-size:16px;line-height:36px;max-width:120px;text-align:center;text-decoration:none;width:100%;background-color:#000000;color:#fff;mso-hide:all\">Join the team</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p class=\"!text-[14px] leading-[24px] text-black\" style=\"font-size:14px;line-height:24px;margin:16px 0\">or copy and paste this URL into your browser: <a href=\"https://vercel.com/teams/invite/foo\" class=\"text-blue-600 no-underline\" style=\"color:#067df7;text-decoration:none\">https://vercel.com/teams/invite/foo</a></p>\n                <hr class=\"mx-0 my-[26px] w-full border border-solid border-[#eaeaea]\" style=\"border:none;border-top:1px solid #eaeaea;width:100%\">\n                <p class=\"!text-[12px] leading-[24px] text-[#666666]\" style=\"font-size:14px;line-height:24px;margin:16px 0\">This invitation was intended for <span class=\"text-black\">batman </span>.This invite was sent from <span class=\"text-black\">123.45.678.910</span> located in <span class=\"text-black\">Gotham City</span>. If you were not expecting this invitation, you can ignore this email. If you are concerned about your account's safety, please reply to this email to get in touch with us.</p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_15 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,Oxygen-Sans,Ubuntu,Cantarell,&#x22;Helvetica Neue&#x22;,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">The sales intelligence platform that helps you uncover qualified leads.<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;margin:0 auto;padding:20px 0 48px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\"><img alt=\"Koala\" src=\"https://jsx.email/assets/demo/koala-logo.png\" width=\"170\" height=\"50\" style=\"border:none;display:block;outline:none;text-decoration:none;margin:0 auto\">\n                <p style=\"font-size:16px;line-height:26px;margin:16px 0\">Hi Bruce,</p>\n                <p style=\"font-size:16px;line-height:26px;margin:16px 0\">Welcome to Koala, the sales intelligence platform that helps you uncover qualified leads and close deals faster.</p>\n                <table align=\"center\" width=\"100%\" style=\"text-align:center\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td align=\"left\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:44px;v-text-anchor:middle;width:106px;\" arcsize=\"6%\"  strokeweight=\"1px\" fillcolor=#5F51E8>\n            <w:anchorlock/>\n            <center style=\"font-size:16px;color:#fff;\">\n            Get started\n            </center></v:roundrect>\n            <![endif]--></span><a href=\"https://getkoala.com\" style=\"-webkit-text-size-adjust:none;border-radius:3px;display:inline-block;font-size:16px;line-height:42px;max-width:106px;text-align:center;text-decoration:none;width:100%;background-color:#5F51E8;color:#fff;mso-hide:all\">Get started</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:16px;line-height:26px;margin:16px 0\">Best,<br>The Koala team</p>\n                <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#cccccc;margin:20px 0\">\n                <p style=\"font-size:12px;line-height:24px;margin:16px 0;color:#8898aa\">408 Warren Rd - San Mateo, CA 94402</p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_16 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n    <style tailwind>\n      /* layer: preflights */\n      /* layer: default */\n      .mx-auto {\n        margin-left: auto;\n        margin-right: auto;\n      }\n\n      .my-0 {\n        margin-top: 0px;\n        margin-bottom: 0px;\n      }\n\n      .my-20 {\n        margin-top: 20px;\n        margin-bottom: 20px;\n      }\n\n      .mb-20 {\n        margin-bottom: 20px;\n      }\n\n      .mb-45 {\n        margin-bottom: 45px;\n      }\n\n      .mt-20 {\n        margin-top: 20px;\n      }\n\n      .mt-45 {\n        margin-top: 45px;\n      }\n\n      .bg-offwhite {\n        background-color: rgb(250, 251, 251);\n      }\n\n      .bg-white {\n        background-color: rgb(255, 255, 255);\n      }\n\n      .p-45 {\n        padding: 45px;\n      }\n\n      .px-20 {\n        padding-left: 20px;\n        padding-right: 20px;\n      }\n\n      .text-center {\n        text-align: center;\n      }\n\n      .text-left {\n        text-align: left;\n      }\n\n      .text-right {\n        text-align: right;\n      }\n\n      .text-base {\n        font-size: 16px;\n        line-height: 24px;\n      }\n\n      .text-black {\n        color: rgb(0, 0, 0);\n      }\n\n      .text-gray-400 {\n        color: rgb(156, 163, 175);\n      }\n\n      .text-green-500 {\n        color: rgb(34, 197, 94);\n      }\n\n      .font-bold {\n        font-weight: 700;\n      }\n\n      .font-sans {\n        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans\", sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\";\n      }\n\n      .underline {\n        text-decoration-line: underline;\n      }\n    </style>\n  </head>\n\n  <body class=\"bg-offwhite font-sans text-base\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Netlify Welcome<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div><img class=\"mx-auto my-20\" alt=\"Netlify\" src=\"https://jsx.email/assets/demo/netlify-logo.png\" width=\"184\" height=\"75\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" class=\"p-45 bg-white\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <h1 class=\"my-0 text-center\" style>Welcome to Netlify</h1>\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <p class=\"text-base\" style=\"font-size:14px;line-height:24px;margin:16px 0\">Congratulations! You're joining over 3 million developers around the world who use Netlify to build and ship sites, stores, and apps.</p>\n                        <p class=\"text-base\" style=\"font-size:14px;line-height:24px;margin:16px 0\">Here's how to get started:</p>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <ul>\n                  <li class=\"mb-20\"><strong>Deploy your first project.</strong> <a style=\"color:#067df7;text-decoration:none\">Connect to Git, choose a template</a>, or manually deploy a project you've been working on locally.</li>\n                  <li class=\"mb-20\"><strong>Check your deploy logs.</strong> Find out what's included in your build and watch for errors or failed deploys. <a style=\"color:#067df7;text-decoration:none\">Learn how to read your deploy logs</a>.</li>\n                  <li class=\"mb-20\"><strong>Choose an integration.</strong> Quickly discover, connect, and configure the right tools for your project with 150+ integrations to choose from. <a style=\"color:#067df7;text-decoration:none\">Explore the Integrations Hub</a>.</li>\n                  <li class=\"mb-20\"><strong>Set up a custom domain.</strong> You can register a new domain and buy it through Netlify or assign a domain you already own to your site. <a style=\"color:#067df7;text-decoration:none\">Add a custom domain</a>.</li>\n                </ul>\n                <table align=\"center\" width=\"100%\" class=\"text-center\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td align=\"left\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:56px;v-text-anchor:middle;width:182px;\" arcsize=\"14%\"  strokeweight=\"1px\" fillcolor=#2250f4>\n            <w:anchorlock/>\n            <center style=\"font-size:16px;color:#fff;\">\n            Go to your dashboard\n            </center></v:roundrect>\n            <![endif]--></span><a style=\"-webkit-text-size-adjust:none;border-radius:8px;display:inline-block;font-size:16px;line-height:54px;max-width:182px;text-align:center;text-decoration:none;width:100%;background-color:#2250f4;color:#fff;mso-hide:all\">Go to your dashboard</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" class=\"mt-45\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td><a class=\"font-bold text-black underline\" style=\"color:#067df7;text-decoration:none\">Visit the forums</a> <span class=\"text-green-500\">→</span></td>\n                              <td><a class=\"font-bold text-black underline\" style=\"color:#067df7;text-decoration:none\">Read the docs</a> <span class=\"text-green-500\">→</span></td>\n                              <td><a class=\"font-bold text-black underline\" style=\"color:#067df7;text-decoration:none\">Contact an expert</a> <span class=\"text-green-500\">→</span></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" class=\"mt-20\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td>\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td class=\"px-20 text-right\"><a style=\"color:#067df7;text-decoration:none\">Unsubscribe</a></td>\n                              <td class=\"text-left\"><a style=\"color:#067df7;text-decoration:none\">Manage Preferences</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p class=\"mb-45 text-center text-gray-400\" style=\"font-size:14px;line-height:24px;margin:16px 0\">Netlify, 44 Montgomery Street, Suite 300 San Francisco, CA</p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_17 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#f6f9fc;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,&#x22;Helvetica Neue&#x22;,Ubuntu,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">You're now ready to make live transactions with Stripe!<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px;background-color:#ffffff;margin:0 auto;padding:20px 0 48px;margin-bottom:64px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" style=\"padding:0 48px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img alt=\"Stripe\" src=\"https://jsx.email/assets/demo/stripe-logo.png\" width=\"49\" height=\"21\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#e6ebf1;margin:20px 0\">\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0;color:#525f7f;text-align:left\">Thanks for submitting your account information. You're now ready to make live transactions with Stripe!</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0;color:#525f7f;text-align:left\">You can view your payments and a variety of other information about your account right from your dashboard.</p>\n                        <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                          <tbody>\n                            <tr>\n                              <td align=\"center\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:40px;v-text-anchor:middle;width:300px;\" arcsize=\"12%\"  strokeweight=\"1px\" fillcolor=#656ee8>\n            <w:anchorlock/>\n            <center style=\"font-size:16px;color:#fff;\">\n            View your Stripe Dashboard\n            </center></v:roundrect>\n            <![endif]--></span><a href=\"https://dashboard.stripe.com/login\" style=\"-webkit-text-size-adjust:none;border-radius:5px;display:inline-block;font-size:16px;line-height:38px;max-width:300px;text-align:center;text-decoration:none;width:100%;background-color:#656ee8;color:#fff;mso-hide:all\">View your Stripe Dashboard</a></td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#e6ebf1;margin:20px 0\">\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0;color:#525f7f;text-align:left\">If you haven't finished your integration, you might find our <a href=\"https://stripe.com/docs\" style=\"color:#556cd6;text-decoration:none\">docs</a> handy.</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0;color:#525f7f;text-align:left\">Once you're ready to start accepting payments, you'll just need to use your live <a href=\"https://dashboard.stripe.com/login?redirect=%2Fapikeys\" style=\"color:#556cd6;text-decoration:none\">API keys</a> instead of your test API keys. Your account can simultaneously be used for both test and live requests, so you can continue testing while accepting live payments. Check out our <a href=\"https://stripe.com/docs/dashboard\" style=\"color:#556cd6;text-decoration:none\">tutorial about account basics</a>.</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0;color:#525f7f;text-align:left\">Finally, we've put together a <a href=\"https://stripe.com/docs/checklist/website\" style=\"color:#556cd6;text-decoration:none\">quick checklist</a> to ensure your website conforms to card network standards.</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0;color:#525f7f;text-align:left\">We'll be here to help you with any step along the way. You can find answers to most questions and get in touch with us on our <a href=\"https://support.stripe.com/\" style=\"color:#556cd6;text-decoration:none\">support site</a>.</p>\n                        <p style=\"font-size:16px;line-height:24px;margin:16px 0;color:#525f7f;text-align:left\">— The Stripe team</p>\n                        <hr style=\"border:none;border-top:1px solid #eaeaea;width:100%;border-color:#e6ebf1;margin:20px 0\">\n                        <p style=\"font-size:12px;line-height:16px;margin:16px 0;color:#8898aa\">Stripe, 354 Oyster Point Blvd, South San Francisco, CA 94080</p>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_0_18 = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html lang=\"en\" dir=\"ltr\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:v=\"urn:schemas-microsoft-com:vml\">\n\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=yes\">\n    <meta name=\"x-apple-disable-message-reformatting\">\n    <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no, url=no\"><!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG></o:AllowPNG><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->\n  </head>\n\n  <body style=\"background-color:#fff;font-family:-apple-system,BlinkMacSystemFont,&#x22;Segoe UI&#x22;,Roboto,Oxygen-Sans,Ubuntu,Cantarell,&#x22;Helvetica Neue&#x22;,sans-serif\">\n    <div data-skip=\"true\" style=\"display:none;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden\">Yelp recent login<div> ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿ ‌​‍‎‏﻿</div>\n    </div>\n    <div style=\"table-layout:fixed;width:100%\">\n      <div style=\"margin:0 auto;max-width:600px\"><span><!--[if mso]><table align=\"center\" width=\"600\" style=\"border-spacing: 0; width:600px;\" role=\"presentation\"><tr><td><![endif]--></span>\n        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"max-width:600px\">\n          <tbody>\n            <tr style=\"width:100%\">\n              <td align=\"center\">\n                <table align=\"center\" width=\"100%\" style=\"padding:30px 20px\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img src=\"https://jsx.email/assets/demo/yelp-logo.png\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"border:1px solid rgb(0,0,0, 0.1);border-radius:3px;overflow:hidden\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img src=\"https://jsx.email/assets/demo/yelp-header.png\" width=\"620\" style=\"border:none;display:block;outline:none;text-decoration:none\">\n                        <table align=\"center\" width=\"100%\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\"></tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" style=\"padding:20px 40px;padding-bottom:0\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td>\n                                <h1 style=\"font-size:32px;font-weight:bold;text-align:center\">Hi Bruce,</h1>\n                                <h2 style=\"font-size:26px;font-weight:bold;text-align:center\">We noticed a recent login to your Yelp account.</h2>\n                                <p style=\"font-size:16px;line-height:24px;margin:16px 0\"><b>Time: </b>September 7, 2022 at 10:58 AM</p>\n                                <p style=\"font-size:16px;line-height:24px;margin:16px 0;margin-top:-5px\"><b>Device: </b>Chrome on Mac OS X</p>\n                                <p style=\"font-size:16px;line-height:24px;margin:16px 0;margin-top:-5px\"><b>Location: </b>Gotham City, United States</p>\n                                <p style=\"font-size:14px;line-height:24px;margin:16px 0;color:rgb(0,0,0, 0.5);margin-top:-5px\">*Approximate geographic location based on IP address:12.345.67.891</p>\n                                <p style=\"font-size:16px;line-height:24px;margin:16px 0\">If this was you, there's nothing else you need to do.</p>\n                                <p style=\"font-size:16px;line-height:24px;margin:16px 0;margin-top:-5px\">If this wasn't you or if you have additional questions, please see our support page.</p>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                        <table align=\"center\" width=\"100%\" style=\"padding:20px 40px;padding-top:0\" role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\n                          <tbody style=\"width:100%\">\n                            <tr style=\"width:100%\">\n                              <td colspan=\"2\" style=\"display:flex;justify-content:center;width:100%\">\n                                <table width=\"100%\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse\" role=\"presentation\">\n                                  <tbody>\n                                    <tr>\n                                      <td align=\"left\"><span><!--[if mso]>\n            <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" style=\"height:46px;v-text-anchor:middle;width:150px;\" arcsize=\"6%\" strokecolor=rgb(0,0,0, 0.1) strokeweight=\"1px\" fillcolor=#e00707>\n            <w:anchorlock/>\n            <center style=\"font-size:16px;color:#fff;\">\n            Learn More\n            </center></v:roundrect>\n            <![endif]--></span><a style=\"-webkit-text-size-adjust:none;border-radius:3px;display:inline-block;font-size:16px;line-height:44px;max-width:150px;text-align:center;text-decoration:none;width:100%;border:1px solid rgb(0,0,0, 0.1);mso-border-alt:none;background-color:#e00707;color:#fff;mso-hide:all\">Learn More</a></td>\n                                    </tr>\n                                  </tbody>\n                                </table>\n                              </td>\n                            </tr>\n                          </tbody>\n                        </table>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n                <table align=\"center\" width=\"100%\" style=\"padding:45px 0 0 0\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\">\n                  <tbody>\n                    <tr>\n                      <td><img src=\"https://jsx.email/assets/demo/yelp-footer.png\" width=\"620\" style=\"border:none;display:block;outline:none;text-decoration:none\"></td>\n                    </tr>\n                  </tbody>\n                </table>\n                <p style=\"font-size:12px;line-height:24px;margin:16px 0;text-align:center;color:rgb(0,0,0, 0.7)\">© 2022 | Yelp Inc., 350 Mission Street, San Francisco, CA 94105, U.S.A. | www.yelp.com</p>\n              </td>\n            </tr>\n          </tbody>\n        </table><span><!--[if mso]></td></tr></table><![endif]--></span>\n      </div>\n    </div>\n  </body>\n\n</html>";
-
-const __vite_glob_1_0 = "Here's what Joker wrote\n\n\"Batsy's stay at my Airbnb Batcave was a riot! Batman surprised with a hidden\nsense of humor, engaging in epic banter and a prank war. His detective skills\nimpressed, and the Batcave remained spotless. Game night and snacks were a hit,\nand even during downtime, he couldn't resist a Bat-signal. Hosting Batsy was\nchaos perfected – if you want a guest with brooding intensity and unexpected\nlaughter, Batman's your Bat. Hahahahahahahahahaha! \"\n\nNow that the review period is over, we’ve posted Joker’s review to your Airbnb\nprofile.\n\nWhile it’s too late to write a review of your own, you can send your feedback to\nJoker using your Airbnb message thread.\n\nSend My Feedback https://airbnb.com/\n\n--------------------------------------------------------------------------------\n\nCommon questions\n\nHow do reviews work? https://airbnb.com/help/article/13\n\nHow do star ratings work? https://airbnb.com/help/article/1257\n\nCan I leave a review after 14 days? https://airbnb.com/help/article/995\n\n--------------------------------------------------------------------------------\n\nAirbnb, Inc., 888 Brannan St, San Francisco, CA 94103\n\nReport unsafe behavior https://airbnb.com";
-
-const __vite_glob_1_1 = "Receipt\n\nSave 3% on all your Apple purchases with Apple Card.1 Apply and use in minutes\nhttps://www.apple.com/apple-card2\n\nAPPLE ID\n\nbruce@wayne.com\n\nINVOICE DATE\n\n18 Jan 2023\n\nORDER ID\n\nML4F5L8522\n\nDOCUMENT NO.\n\n186623754793\n\nBILLED TO\n\nVisa .... 7461 (Apple Pay)\n\nBruce Wayne\n\n2125 Chestnut St\n\nSan Francisco, CA 94123\n\nUSA\n\nApp Store\n\nHBO Max: Stream TV & Movies\n\nHBO Max Ad-Free (Monthly)\n\nRenews Aug 20, 2023\n\nWrite a Review\nhttps://userpub.itunes.apple.com/WebObjects/MZUserPublishing.woa/wa/addUserReview?cc=us&id=1497977514&o=i&type=Subscription%20Renewal|Report\na Problem\nhttps://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/reportAProblem?a=1497977514&cc=us&d=683263808&o=i&p=29065684906671&pli=29092219632071&s=1\n\n$14.99\n\n--------------------------------------------------------------------------------\n\nTOTAL\n\n$14.99\n\n--------------------------------------------------------------------------------\n\n\n\nSave 3% on all your Apple purchases.\n\nApply and use in minutes\nhttps://wallet.apple.com/apple-card/setup/feature/ccs?referrer=cid%3Dapy-120-100003\n\n--------------------------------------------------------------------------------\n\n1. 3% savings is earned as Daily Cash and is transferred to your Apple Cash card\nwhen transactions post to your Apple Card account. If you do not have an Apple\nCash card, Daily Cash can be applied by you as a credit on your statement\nbalance. 3% is the total amount of Daily Cash earned for these purchases. See\nthe Apple Card Customer Agreement for more details on Daily Cash and qualifying\ntransactions.\n\n2. Subject to credit approval.\n\nTo access and use all the features of Apple Card, you must add Apple Card to\nWallet on an iPhone or iPad with iOS or iPadOS 13.2 or later. Update to the\nlatest version of iOS or iPadOS by going to Settings > General > Software\nUpdate. Tap Download and Install.\n\nAvailable for qualifying applicants in the United States.\n\nApple Card is issued by Goldman Sachs Bank USA, Salt Lake City Branch.\n\nIf you reside in the US territories, please call Goldman Sachs at 877-255-5923\nwith questions about Apple Card.\n\nPrivacy: We use a Subscriber ID http://support.apple.com/kb/HT207233to provide\nreports to developers.\n\nGet help with subscriptions and purchases.Visit Apple Support.\nhttps://support.apple.com/billing?cid=email_receipt\n\nLearn how to manage your password preferences\nhttps://support.apple.com/kb/HT204030?cid=email_receipt_itunes_article_HT204030\nfor iTunes, Apple Books, and App Store purchases.\n\nYou have the option to stop receiving email receipts for your subscription\nrenewals. If you have opted out, you can still view your receipts in your\naccount under Purchase History. To manage receipts or to opt in again, go to\nAccount Settings.\nhttps://finance-app.itunes.apple.com/account/subscriptions?unsupportedRedirectUrl=https://apps.apple.com/US/invoice\n\n\n\nAccount Settings\nhttps://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/accountSummary?mt=8 •\nTerms of Sale https://www.apple.com/legal/itunes/us/sales.html • Privacy Policy\nhttps://www.apple.com/legal/privacy/\n\nCopyright © 2023 Apple Inc.\nAll rights reserved https://www.apple.com/legal/";
-
-const __vite_glob_1_2 = "View this Challenge on CodePen\n\n\nTHIS WEEK: #CODEPENCHALLENGE:\n\nCUBES\n\nThe Shape challenge continues!\n\nLast week, we kicked things off with round shapes. We \"rounded\" up the Pens from\nweek one in our #CodePenChallenge: Round collection.\n\nThis week, we move on to cubes 🧊\n\nCreating cubes in the browser is all about mastery of illusion. Take control of\nperspective and shadows and you can make the magic of 3D on a flat screen 🧙\n\nThis week is a fun chance to work on your CSS shape-building skills, or dig into\na 3D JavaScript library like Three.js.\n\nThis week's starter template features an ice cube emoji to help inspire a \"cool\"\nidea for your Pen. As always, the template is just as jumping off point. Feel\nfree to incorporate the 🧊 in your creation, add more elements, or freeze it out\ncompletely and start over from scratch!\n\n💪 Your Challenge: create a Pen that includes cube shapes.\n\nCodePen PRO combines a bunch of features that can help any front-end designer or\ndeveloper at any experience level.\n\nLearn More\n\nTo participate: Create a Pen → and tag it codepenchallenge and cpc-cubes. We'll\nbe watching and gathering the Pens into a Collection, and sharing on Twitter and\nInstagram (Use the #CodePenChallenge tag on Twitter and Instagram as well).\n\nIDEAS!\n\n🌟\n\nThis week we move from 2 dimensions to three! Maybe you could exercise your\nperspective in CSS to create a 3D cube. Or, you can try out creating 3D shapes\nin JavaScript, using WebGL or building a Three.js scene.\n\n🌟\n\nThere's more to cubes than just six square sides. There are variations on the\ncube that could be fun to play with this week: cuboid shapes are hexahedrons\nwith faces that aren't always squares. And if you want to really push the\nboundaries of shape, consider the 4 dimensional tesseract!\n\n🌟\n\nHere's a mind-bending idea that can combine the round shapes from week one with\nthis week's cube theme: Spherical Cubes 😳 Solving longstanding mathematical\nmysteries is probably outside the scope of a CodePen challenge, but you could\nuse front-end tools to explore fitting spheres into cubes, or vice-versa.\n\nRESOURCES!\n\n📖\n\nLearn all about How CSS Perspective Works and how to build a 3D CSS cube from\nscratch in Amit Sheen's in-depth tutorial for CSS-Tricks. Or, check out stunning\nexamples of WebGL cubes from Matthias Hurrle: Just Ice and Posing.\n\n📖\n\nWant to go beyond the square cube? Draw inspiration from EntropyReversed's\nPulsating Tesseract, Josetxu's Rainbow Cuboid Loader, or Ana Tudor's Pure CSS\ncuboid jellyfish.\n\n📖\n\nDid that spherical cubes concept pique your interest? Explore Ryan Mulligan's\nCube Sphere, Munir Safi's 3D Sphere to Cube Animation With Virtual Trackball and\nAna Tudor's Infinitely unpack prism for more mindbending cube concepts that test\nthe boundaries of how shapes interact with each other.\n\nGo to Challenge Page\n\nYou can adjust your email preferences any time, or instantly opt out of emails\nof this kind. Need help with anything? Hit up support.";
-
-const __vite_glob_1_3 = "Hi Bruce,\n\nSomeone recently requested a password change for your Dropbox account. If this\nwas you, you can set a new password here:\n\nReset password https://dropbox.com\n\nIf you don't want to change your password or didn't request this, just ignore\nand delete this message.\n\nTo keep your account secure, please don't forward this email to anyone. See our\nHelp Center for more security tips. https://dropbox.com\n\nHappy Dropboxing!";
-
-const __vite_glob_1_4 = "@Batman, a personal access was created on your account.\n\nHey Batman!\n\nA fine-grained personal access token (resend) was recently added to your\naccount.\n\nView your token\n\nYour security audit log ・ Contact support\n\nGitHub, Inc. ・88 Colin P Kelly Jr Street ・San Francisco, CA 94107";
-
-const __vite_glob_1_5 = "YOUR LOGIN CODE FOR LINEAR\n\nLogin to Linear https://linear.app\n\nThis link and code will only be valid for the next 5 minutes. If the link does\nnot work, you can use the login verification code directly:\n\ntt226-5398x\n\n--------------------------------------------------------------------------------\n\nLinear https://linear.app";
-
-const __vite_glob_1_6 = "LOGIN\n\nClick here to log in with this magic link https://notion.so\n\nOr, copy and paste this temporary login code:\n\nsparo-ndigo-amurt-secan\n\nIf you didn't try to login, you can safely ignore this email.\n\nHint: You can set a permanent password in Settings & members → My account.\n\nNotion.so https://notion.so, the all-in-one-workspace\nfor your notes, tasks, wikis, and databases.";
-
-const __vite_glob_1_7 = "🪄 YOUR MAGIC LINK\n\n👉 Click here to sign in 👈 https://raycast.com\n\nIf you didn't request this, please ignore this email.\n\nBest,\n- Raycast Team\n\n--------------------------------------------------------------------------------\n\nRaycast Technologies Inc.\n\n2093 Philadelphia Pike #3222, Claymont, DE 19703";
-
-const __vite_glob_1_8 = "Hi Batman,\n\nYou updated the password for your Twitch account on Jun 23, 2022, 12:06:00 PM.\nIf this was you, then no further action is required.\n\nHowever if you did NOT perform this password change, please reset your account\npassword immediately.\n\nRemember to use a password that is both strong and unique to your Twitch\naccount. To learn more about how to create a strong and unique password, click\nhere.\n\nStill have questions? Please contact Twitch Support\n\nThanks,\nTwitch Support Team\n\n© 2022 Twitch, All Rights Reserved\n350 Bush Street, 2nd Floor, San Francisco, CA, 94104 - USA";
-
-const __vite_glob_1_9 = "--------------------------------------------------------------------------------\n\nDEVELOPER UPDATE\n\nHello Google Play Developer,\n\nWe strive to make Google Play a safe and trusted experience for users.\n\nWe've added clarifications to our Target API Level policy\nhttps://notifications.google.com. Because this is a clarification, our\nenforcement standards and practices for this policy remain the same.\n\nWe’re noting exceptions to the Target API Level policy\nhttps://notifications.google.com, which can be found in our updated Help Center\narticle. https://notifications.google.comThese exceptions include permanently\nprivate apps and apps that target automotive or wearables form factors and are\nbundled within the same package. Learn more https://notifications.google.com\n\nWe’re also extending the deadline to give you more time to adjust to these\nchanges. Now, apps that target API level 29 or below will start experiencing\nreduced distribution starting Jan 31, 2023 instead of Nov 1, 2022. If you need\nmore time to update your app, you can request an extension to keep your app\ndiscoverable to all users until May 1, 2023.\n\n--------------------------------------------------------------------------------\n\nThank you,\n\nThe Google Play team\n\nConnect with us\n\nhttps://notifications.google.comhttps://notifications.google.comhttps://notifications.google.com\n\n\n\n© 2022 Google LLC 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA\n\nYou have received this mandatory email service announcement to update you about\nimportant changes to your Google Play Developer account.";
-
-const __vite_glob_1_10 = "Tracking Number\n\n1ZV218970300071628\n\nTrack Package\n\n--------------------------------------------------------------------------------\n\n\nIT'S ON ITS WAY.\n\nYou order's is on its way. Use the link above to track its progress.\n\nWe´ve also charged your payment method for the cost of your order and will be\nremoving any authorization holds. For payment details, please visit your Orders\npage on Nike.com or in the Nike app.\n\n--------------------------------------------------------------------------------\n\nShipping to: Bruce Wayne\n\n2125 Chestnut St, San Francisco, CA 94123\n\n--------------------------------------------------------------------------------\n\nBrazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey\n\nSize L (12–14)\n\n--------------------------------------------------------------------------------\n\nOrder Number\n\nC0106373851\n\nOrder Date\n\nSep 22, 2022\n\nOrder Status\n\n--------------------------------------------------------------------------------\n\nTop Picks For You\n\nUSWNT 2022/23 Stadium Home\n\nWomen's Nike Dri-FIT Soccer Jersey\n\nBrazil 2022/23 Stadium Goalkeeper\n\nMen's Nike Dri-FIT Short-Sleeve Football Shirt\n\nFFF\n\nWomen's Soccer Jacket\n\nFFF\n\nWomen's Nike Pre-Match Football Top\n\n--------------------------------------------------------------------------------\n\nGet Help\n\nShipping Status /Shipping & Delivery /Returns & Exchanges /\n\nHow to Return /Contact Options /\n\n--------------------------------------------------------------------------------\n\n1-800-806-6453\n\n4 am - 11 pm PT\n\n--------------------------------------------------------------------------------\n\nNike.com\n\nMen /Women /Kids /Customize /\n\n--------------------------------------------------------------------------------\n\nWeb Version\n\nPrivacy Policy\n\nPlease contact us if you have any questions. (If you reply to this email, we\nwon't be able to see it.)\n\n© 2022 Nike, Inc. All Rights Reserved.\n\nNIKE, INC. One Bowerman Drive, Beaverton, Oregon 97005, USA.";
-
-const __vite_glob_1_11 = "Verify Your Identity\n\n\nENTER THE FOLLOWING CODE TO FINISH LINKING VENMO.\n\n144833\n\nNot expecting this email?\n\nContact login@plaid.com login@plaid.com if you did not request this code.\n\nSecurely powered by Plaid.";
-
-const __vite_glob_1_12 = "CONFIRM YOUR EMAIL ADDRESS\n\nYour confirmation code is below - enter it in your open browser window and we'll\nhelp you get signed in.\n\nDJZ-TLX\n\nIf you didn't request this email, there's nothing to worry about - you can\nsafely ignore it.\n\n///\n\nOur blog https://slackhq.com   |   Policies https://slack.com/legal   |   Help\ncenter https://slack.com/help   |   Slack Community https://slack.com/community\n\n©2022 Slack Technologies, LLC, a Salesforce company.\n500 Howard Street, San Francisco, CA 94105, USA\n\nAll rights reserved.";
-
-const __vite_glob_1_13 = "FIND WHAT YOU WANT, FASTER\n\nTips and tricks for searching on Stack Overflow\n\n\nSEARCHING FOR SOLUTIONS\n\nWith more than 18 million questions, it's possible that someone has already\nprovided a solution to the problem you're facing.\n\n--------------------------------------------------------------------------------\n\n\nUSE THE SEARCH BAR AT THE TOP OF THE PAGE TO FIND WHAT YOU NEED\n\nHere are a few simple search tips to get you started:\n\n * To find a specific phrase, enter it in quotes: \"local storage\"\n\n * To search within specific tag(s), enter them in square brackets: [javascript]\n\n * Combine them to get even more precise results - [javascript] \"local storage\"\n   searches for the phrase “local storage” in questions that have the\n   [javascript] tag\n\nThe more information you can put in the search bar, the more likely you will be\nto either find the answer you need or feel confident that no one else has asked\nthe question before.\n\n--------------------------------------------------------------------------------\n\n\nTAKE A BREAK AND READ ABOUT THE WORST CODER IN THE WORLD\n\nI need a break https://stackoverflow.blog/2019/10/22/\n\nYou're receiving this email because your Stack Overflow activity triggered this\ntip or reminder.\n\nUnsubscribe from emails like this /Edit email settings /Contact us /Privacy /\n\n--------------------------------------------------------------------------------\n\nStack Overflow, 110 William Street, 28th Floor, New York, NY 10038\n\n<3";
-
-const __vite_glob_1_14 = "JOIN BATMOBILE ON VERCEL\n\nHello batman,\n\njoker (joker@arkham.com joker@arkham.com) has invited you to the Batmobile team\non Vercel.\n\n\n\nJoin the team https://vercel.com/teams/invite/foo\n\nor copy and paste this URL into your browser:\nhttps://vercel.com/teams/invite/foo https://vercel.com/teams/invite/foo\n\n--------------------------------------------------------------------------------\n\nThis invitation was intended for batman .This invite was sent from\n123.45.678.910 located in Gotham City. If you were not expecting this\ninvitation, you can ignore this email. If you are concerned about your account's\nsafety, please reply to this email to get in touch with us.";
-
-const __vite_glob_1_15 = "Hi Bruce,\n\nWelcome to Koala, the sales intelligence platform that helps you uncover\nqualified leads and close deals faster.\n\nGet started https://getkoala.com\n\nBest,\nThe Koala team\n\n--------------------------------------------------------------------------------\n\n408 Warren Rd - San Mateo, CA 94402";
-
-const __vite_glob_1_16 = "WELCOME TO NETLIFY\n\nCongratulations! You're joining over 3 million developers around the world who\nuse Netlify to build and ship sites, stores, and apps.\n\nHere's how to get started:\n\n * Deploy your first project. Connect to Git, choose a template, or manually\n   deploy a project you've been working on locally.\n * Check your deploy logs. Find out what's included in your build and watch for\n   errors or failed deploys. Learn how to read your deploy logs.\n * Choose an integration. Quickly discover, connect, and configure the right\n   tools for your project with 150+ integrations to choose from. Explore the\n   Integrations Hub.\n * Set up a custom domain. You can register a new domain and buy it through\n   Netlify or assign a domain you already own to your site. Add a custom domain.\n\nGo to your dashboard\n\nVisit the forums →Read the docs →Contact an expert →\n\nUnsubscribeManage Preferences\n\nNetlify, 44 Montgomery Street, Suite 300 San Francisco, CA";
-
-const __vite_glob_1_17 = "--------------------------------------------------------------------------------\n\nThanks for submitting your account information. You're now ready to make live\ntransactions with Stripe!\n\nYou can view your payments and a variety of other information about your account\nright from your dashboard.\n\nView your Stripe Dashboard https://dashboard.stripe.com/login\n\n--------------------------------------------------------------------------------\n\nIf you haven't finished your integration, you might find our docs\nhttps://stripe.com/docs handy.\n\nOnce you're ready to start accepting payments, you'll just need to use your live\nAPI keys https://dashboard.stripe.com/login?redirect=%2Fapikeys instead of your\ntest API keys. Your account can simultaneously be used for both test and live\nrequests, so you can continue testing while accepting live payments. Check out\nour tutorial about account basics https://stripe.com/docs/dashboard.\n\nFinally, we've put together a quick checklist\nhttps://stripe.com/docs/checklist/website to ensure your website conforms to\ncard network standards.\n\nWe'll be here to help you with any step along the way. You can find answers to\nmost questions and get in touch with us on our support site\nhttps://support.stripe.com/.\n\n— The Stripe team\n\n--------------------------------------------------------------------------------\n\nStripe, 354 Oyster Point Blvd, South San Francisco, CA 94080";
-
-const __vite_glob_1_18 = "HI BRUCE,\n\n\nWE NOTICED A RECENT LOGIN TO YOUR YELP ACCOUNT.\n\nTime: September 7, 2022 at 10:58 AM\n\nDevice: Chrome on Mac OS X\n\nLocation: Gotham City, United States\n\n*Approximate geographic location based on IP address:12.345.67.891\n\nIf this was you, there's nothing else you need to do.\n\nIf this wasn't you or if you have additional questions, please see our support\npage.\n\nLearn More\n\n\n\n© 2022 | Yelp Inc., 350 Mission Street, San Francisco, CA 94105, U.S.A. |\nwww.yelp.com";
-
-const __vite_glob_2_0 = `import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Text
-} from 'jsx-email';
-
-interface AirbnbReviewEmailProps {
-  authorName?: string;
-  authorImage?: string;
-  reviewText?: string;
-}
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  authorName: 'Joker',
-  authorImage: \`\${baseUrl}batman-twilight.jpg\`,
-  reviewText: \`"Batsy's stay at my Airbnb Batcave was a riot! Batman surprised with a hidden sense of humor, engaging in epic banter and a prank war. His detective skills impressed, and the Batcave remained spotless. Game night and snacks were a hit, and even during downtime, he couldn't resist a Bat-signal. Hosting Batsy was chaos perfected – if you want a guest with brooding intensity and unexpected laughter, Batman's your Bat. Hahahahahahahahahaha! "\`
-} as AirbnbReviewEmailProps;
-
-export const templateName = 'Airbnb Review';
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const container = {
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  width: '580px'
-};
-
-const userImage = {
-  margin: '0 auto',
-  marginBottom: '16px',
-  borderRadius: '50%'
-};
-
-const heading = {
-  fontSize: '32px',
-  lineHeight: '1.3',
-  fontWeight: '700',
-  color: '#484848'
-};
-
-const paragraph = {
-  fontSize: '18px',
-  lineHeight: '1.4',
-  color: '#484848'
-};
-
-const review = {
-  ...paragraph,
-  padding: '24px',
-  backgroundColor: '#f2f3f3',
-  borderRadius: '4px'
-};
-
-const link = {
-  ...paragraph,
-  color: '#ff5a5f',
-  display: 'block'
-};
-
-const reportLink = {
-  fontSize: '14px',
-  color: '#9ca299',
-  textDecoration: 'underline'
-};
-
-const hr = {
-  borderColor: '#cccccc',
-  margin: '20px 0'
-};
-
-const footer = {
-  color: '#9ca299',
-  fontSize: '14px',
-  marginBottom: '10px'
-};
-
-export const Template = ({ authorName, authorImage, reviewText }: AirbnbReviewEmailProps) => {
-  const previewText = \`Read \${authorName}'s review\`;
-
-  return (
-    <Html>
-      <Head />
-      <Preview>{previewText}</Preview>
-
-      <Body style={main}>
-        <Section style={main}>
-          <Container style={container}>
-            <Section>
-              <Img src={\`\${baseUrl}airbnb-logo.png\`} width="96" height="30" alt="Airbnb" />
-            </Section>
-            <Section>
-              <Img src={authorImage} width="96" height="96" alt={authorName} style={userImage} />
-            </Section>
-            <Section style={{ paddingBottom: '20px' }}>
-              <Row>
-                <Text style={heading}>Here's what {authorName} wrote</Text>
-                <Text style={review}>{reviewText}</Text>
-                <Text style={paragraph}>
-                  Now that the review period is over, we’ve posted {authorName}
-                  ’s review to your Airbnb profile.
-                </Text>
-                <Text style={{ ...paragraph, paddingBottom: '16px' }}>
-                  While it’s too late to write a review of your own, you can send your feedback to{' '}
-                  {authorName} using your Airbnb message thread.
-                </Text>
-                <Button
-                  width={300}
-                  height={60}
-                  align="center"
-                  backgroundColor={'#ff5a5f'}
-                  borderRadius={3}
-                  textColor="#fff"
-                  fontSize={18}
-                  href="https://airbnb.com/"
-                >
-                  Send My Feedback
-                </Button>
-              </Row>
-            </Section>
-
-            <Hr style={hr} />
-
-            <Section>
-              <Row>
-                <Text style={{ ...paragraph, fontWeight: '700' }}>Common questions</Text>
-                <Text>
-                  <Link href="https://airbnb.com/help/article/13" style={link}>
-                    How do reviews work?
-                  </Link>
-                </Text>
-                <Text>
-                  <Link href="https://airbnb.com/help/article/1257" style={link}>
-                    How do star ratings work?
-                  </Link>
-                </Text>
-                <Text>
-                  <Link href="https://airbnb.com/help/article/995" style={link}>
-                    Can I leave a review after 14 days?
-                  </Link>
-                </Text>
-                <Hr style={hr} />
-                <Text style={footer}>Airbnb, Inc., 888 Brannan St, San Francisco, CA 94103</Text>
-                <Link href="https://airbnb.com" style={reportLink}>
-                  Report unsafe behavior
-                </Link>
-              </Row>
-            </Section>
-          </Container>
-        </Section>
-      </Body>
-    </Html>
-  );
-};
-`;
-
-const __vite_glob_2_1 = `import {
-  Body,
-  Container,
-  Column,
-  Head,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Text
-} from 'jsx-email';
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-const main = {
-  fontFamily: '"Helvetica Neue",Helvetica,Arial,sans-serif',
-  backgroundColor: '#ffffff'
-};
-
-const resetText = {
-  margin: '0',
-  padding: '0',
-  lineHeight: 1.4
-};
-
-const container = {
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  width: '660px'
-};
-
-const tableCell = { display: 'table-cell' };
-
-const heading = {
-  fontSize: '32px',
-  fontWeight: '300',
-  color: '#888888'
-};
-
-const cupomText = {
-  textAlign: 'center' as const,
-  margin: '36px 0 40px 0',
-  fontSize: '14px',
-  fontWeight: '500',
-  color: '#111111'
-};
-
-const supStyle = {
-  fontWeight: '300'
-};
-
-const informationTable = {
-  borderCollapse: 'collapse' as const,
-  borderSpacing: '0px',
-  color: 'rgb(51,51,51)',
-  backgroundColor: 'rgb(250,250,250)',
-  borderRadius: '3px',
-  fontSize: '12px'
-};
-
-const informationTableRow = {
-  height: '46px'
-};
-
-const informationTableColumn = {
-  paddingLeft: '20px',
-  borderStyle: 'solid',
-  borderColor: 'white',
-  borderWidth: '0px 1px 1px 0px',
-  height: '44px'
-};
-
-const informationTableLabel = {
-  ...resetText,
-  color: 'rgb(102,102,102)',
-  fontSize: '10px'
-};
-
-const informationTableValue = {
-  fontSize: '12px',
-  margin: '0',
-  padding: '0',
-  lineHeight: 1.4
-};
-
-const productTitleTable = {
-  ...informationTable,
-  margin: '30px 0 15px 0',
-  height: '24px'
-};
-
-const productsTitle = {
-  background: '#fafafa',
-  paddingLeft: '10px',
-  fontSize: '14px',
-  fontWeight: '500',
-  margin: '0'
-};
-
-const productIcon = {
-  margin: '0 0 0 20px',
-  borderRadius: '14px',
-  border: '1px solid rgba(128,128,128,0.2)'
-};
-
-const productTitle = { fontSize: '12px', fontWeight: '600', ...resetText };
-
-const productDescription = {
-  fontSize: '12px',
-  color: 'rgb(102,102,102)',
-  ...resetText
-};
-
-const productLink = {
-  fontSize: '12px',
-  color: 'rgb(0,112,201)',
-  textDecoration: 'none'
-};
-
-const divisor = {
-  marginLeft: '4px',
-  marginRight: '4px',
-  color: 'rgb(51,51,51)',
-  fontWeight: 200
-};
-
-const productPriceTotal = {
-  margin: '0',
-  color: 'rgb(102,102,102)',
-  fontSize: '10px',
-  fontWeight: '600',
-  padding: '0px 30px 0px 0px',
-  textAlign: 'right' as const
-};
-
-const productPrice = {
-  fontSize: '12px',
-  fontWeight: '600',
-  margin: '0'
-};
-
-const productPriceLarge = {
-  margin: '0px 20px 0px 0px',
-  fontSize: '16px',
-  fontWeight: '600',
-  whiteSpace: 'nowrap' as const,
-  textAlign: 'right' as const
-};
-
-const productPriceWrapper = {
-  display: 'table-cell',
-  padding: '0px 20px 0px 0px',
-  width: '100px',
-  verticalAlign: 'top'
-};
-
-const productPriceLine = { margin: '30px 0 0 0' };
-
-const productPriceVerticalLine = {
-  height: '48px',
-  borderLeft: '1px solid',
-  borderColor: 'rgb(238,238,238)'
-};
-
-const productPriceLargeWrapper = { display: 'table-cell', width: '90px' };
-
-const productPriceLineBottom = { margin: '0 0 75px 0' };
-
-const block = { display: 'block' };
-
-const ctaTitle = {
-  display: 'block',
-  margin: '15px 0 0 0'
-};
-
-const ctaText = { fontSize: '24px', fontWeight: '500' };
-
-const walletWrapper = { display: 'table-cell', margin: '10px 0 0 0' };
-
-const walletLink = { color: 'rgb(0,126,255)', textDecoration: 'none' };
-
-const walletImage = {
-  display: 'inherit',
-  paddingRight: '8px',
-  verticalAlign: 'middle'
-};
-
-const walletBottomLine = { margin: '65px 0 20px 0' };
-
-const footerText = {
-  fontSize: '12px',
-  color: 'rgb(102,102,102)',
-  margin: '0',
-  lineHeight: 'auto',
-  marginBottom: '16px'
-};
-
-const footerTextCenter = {
-  fontSize: '12px',
-  color: 'rgb(102,102,102)',
-  margin: '20px 0',
-  lineHeight: 'auto',
-  textAlign: 'center' as const
-};
-
-const footerLink = { color: 'rgb(0,115,255)' };
-
-const footerIcon = { display: 'block', margin: '40px 0 0 0' };
-
-const footerLinksWrapper = {
-  margin: '8px 0 0 0',
-  textAlign: 'center' as const,
-  fontSize: '12px',
-  color: 'rgb(102,102,102)'
-};
-
-const footerCopyright = {
-  margin: '25px 0 0 0',
-  textAlign: 'center' as const,
-  fontSize: '12px',
-  color: 'rgb(102,102,102)'
-};
-
-const walletLinkText = {
-  fontSize: '14px',
-  fontWeight: '400',
-  textDecoration: 'none'
-};
-
-export const templateName = 'Apple Receipt';
-
-export const Template = () => (
-  <Html>
-    <Head />
-    <Preview>Apple Receipt</Preview>
-
-    <Body style={main}>
-      <Container style={container}>
-        <Section>
-          <Row>
-            <Column>
-              <Img src={\`\${baseUrl}apple-logo.png\`} width="42" height="42" alt="Apple Logo" />
-            </Column>
-
-            <Column align="right" style={tableCell}>
-              <Text style={heading}>Receipt</Text>
-            </Column>
-          </Row>
-        </Section>
-        <Section>
-          <Text style={cupomText}>
-            Save 3% on all your Apple purchases with Apple Card.
-            <sup style={supStyle}>1</sup>{' '}
-            <Link href="https://www.apple.com/apple-card">Apply and use in minutes</Link>
-            <sup style={supStyle}>2</sup>
-          </Text>
-        </Section>
-        <Section style={informationTable}>
-          <Row style={informationTableRow}>
-            <Column colSpan={2}>
-              <Section>
-                <Row>
-                  <Column style={informationTableColumn}>
-                    <Text style={informationTableLabel}>APPLE ID</Text>
-                    <Link
-                      style={{
-                        ...informationTableValue,
-                        color: '#15c',
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      bruce@wayne.com
-                    </Link>
-                  </Column>
-                </Row>
-
-                <Row>
-                  <Column style={informationTableColumn}>
-                    <Text style={informationTableLabel}>INVOICE DATE</Text>
-                    <Text style={informationTableValue}>18 Jan 2023</Text>
-                  </Column>
-                </Row>
-
-                <Row>
-                  <Column style={informationTableColumn}>
-                    <Text style={informationTableLabel}>ORDER ID</Text>
-                    <Link
-                      style={{
-                        ...informationTableValue,
-                        color: '#15c',
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      ML4F5L8522
-                    </Link>
-                  </Column>
-                  <Column style={informationTableColumn}>
-                    <Text style={informationTableLabel}>DOCUMENT NO.</Text>
-                    <Text style={informationTableValue}>186623754793</Text>
-                  </Column>
-                </Row>
-              </Section>
-            </Column>
-            <Column style={informationTableColumn} colSpan={2}>
-              <Text style={informationTableLabel}>BILLED TO</Text>
-              <Text style={informationTableValue}>Visa .... 7461 (Apple Pay)</Text>
-              <Text style={informationTableValue}>Bruce Wayne</Text>
-              <Text style={informationTableValue}>2125 Chestnut St</Text>
-              <Text style={informationTableValue}>San Francisco, CA 94123</Text>
-              <Text style={informationTableValue}>USA</Text>
-            </Column>
-          </Row>
-        </Section>
-        <Section style={productTitleTable}>
-          <Text style={productsTitle}>App Store</Text>
-        </Section>
-        <Section>
-          <Row>
-            <Column style={{ width: '64px' }}>
-              <Img
-                src={\`\${baseUrl}apple-hbo-max-icon.jpeg\`}
-                width="64"
-                height="64"
-                alt="HBO Max"
-                style={productIcon}
-              />
-            </Column>
-            <Column style={{ paddingLeft: '22px' }}>
-              <Text style={productTitle}>HBO Max: Stream TV &amp; Movies</Text>
-              <Text style={productDescription}>HBO Max Ad-Free (Monthly)</Text>
-              <Text style={productDescription}>Renews Aug 20, 2023</Text>
-              <Link
-                href="https://userpub.itunes.apple.com/WebObjects/MZUserPublishing.woa/wa/addUserReview?cc=us&amp;id=1497977514&amp;o=i&amp;type=Subscription%20Renewal"
-                style={productLink}
-                data-saferedirecturl="https://www.google.com/url?q=https://userpub.itunes.apple.com/WebObjects/MZUserPublishing.woa/wa/addUserReview?cc%3Dus%26id%3D1497977514%26o%3Di%26type%3DSubscription%2520Renewal&amp;source=gmail&amp;ust=1673963081204000&amp;usg=AOvVaw2DFCLKMo1snS-Swk5H26Z1"
-              >
-                Write a Review
-              </Link>
-              <span style={divisor}>|</span>
-              <Link
-                href="https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/reportAProblem?a=1497977514&amp;cc=us&amp;d=683263808&amp;o=i&amp;p=29065684906671&amp;pli=29092219632071&amp;s=1"
-                style={productLink}
-                data-saferedirecturl="https://www.google.com/url?q=https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/reportAProblem?a%3D1497977514%26cc%3Dus%26d%3D683263808%26o%3Di%26p%3D29065684906671%26pli%3D29092219632071%26s%3D1&amp;source=gmail&amp;ust=1673963081204000&amp;usg=AOvVaw3y47L06B2LTrL6qsmaW2Hq"
-              >
-                Report a Problem
-              </Link>
-            </Column>
-
-            <Column style={productPriceWrapper} align="right">
-              <Text style={productPrice}>$14.99</Text>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={productPriceLine} />
-        <Section align="right">
-          <Row>
-            <Column style={tableCell} align="right">
-              <Text style={productPriceTotal}>TOTAL</Text>
-            </Column>
-            <Column style={productPriceVerticalLine}></Column>
-            <Column style={productPriceLargeWrapper}>
-              <Text style={productPriceLarge}>$14.99</Text>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={productPriceLineBottom} />
-        <Section>
-          <Row>
-            <Column align="center" style={block}>
-              <Img src={\`\${baseUrl}apple-card-icon.png\`} width="60" height="17" alt="Apple Card" />
-            </Column>
-          </Row>
-        </Section>
-        <Section>
-          <Row>
-            <Column align="center" style={ctaTitle}>
-              <Text style={ctaText}>Save 3% on all your Apple purchases.</Text>
-            </Column>
-          </Row>
-        </Section>
-        <Section>
-          <Row>
-            <Column align="center" style={walletWrapper}>
-              <Link
-                href="https://wallet.apple.com/apple-card/setup/feature/ccs?referrer=cid%3Dapy-120-100003"
-                style={walletLink}
-              >
-                <Img
-                  src={\`\${baseUrl}apple-wallet.png\`}
-                  width="28"
-                  height="28"
-                  alt="Apple Wallet"
-                  style={walletImage}
-                />
-                <span style={walletLinkText}>Apply and use in minutes</span>
-              </Link>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={walletBottomLine} />
-        <Text style={footerText}>
-          1. 3% savings is earned as Daily Cash and is transferred to your Apple Cash card when
-          transactions post to your Apple Card account. If you do not have an Apple Cash card, Daily
-          Cash can be applied by you as a credit on your statement balance. 3% is the total amount
-          of Daily Cash earned for these purchases. See the Apple Card Customer Agreement for more
-          details on Daily Cash and qualifying transactions.
-        </Text>
-        <Text style={footerText}>2. Subject to credit approval.</Text>
-        <Text style={footerText}>
-          To access and use all the features of Apple Card, you must add Apple Card to Wallet on an
-          iPhone or iPad with iOS or iPadOS 13.2 or later. Update to the latest version of iOS or
-          iPadOS by going to Settings &gt; General &gt; Software Update. Tap Download and Install.
-        </Text>
-        <Text style={footerText}>Available for qualifying applicants in the United States.</Text>
-        <Text style={footerText}>
-          Apple Card is issued by Goldman Sachs Bank USA, Salt Lake City Branch.
-        </Text>
-        <Text style={footerText}>
-          If you reside in the US territories, please call Goldman Sachs at 877-255-5923 with
-          questions about Apple Card.
-        </Text>
-        <Text style={footerTextCenter}>
-          Privacy: We use a
-          <Link href="http://support.apple.com/kb/HT207233" style={footerLink}>
-            {' '}
-            Subscriber ID{' '}
-          </Link>
-          to provide reports to developers.
-        </Text>
-        <Text style={footerTextCenter}>
-          Get help with subscriptions and purchases.
-          <Link href="https://support.apple.com/billing?cid=email_receipt" style={footerLink}>
-            Visit Apple Support.
-          </Link>
-        </Text>
-        <Text style={footerTextCenter}>
-          Learn how to{' '}
-          <Link href="https://support.apple.com/kb/HT204030?cid=email_receipt_itunes_article_HT204030">
-            manage your password preferences
-          </Link>{' '}
-          for iTunes, Apple Books, and App Store purchases.
-        </Text>
-
-        <Text style={footerTextCenter}>
-          {' '}
-          You have the option to stop receiving email receipts for your subscription renewals. If
-          you have opted out, you can still view your receipts in your account under Purchase
-          History. To manage receipts or to opt in again, go to{' '}
-          <Link href="https://finance-app.itunes.apple.com/account/subscriptions?unsupportedRedirectUrl=https://apps.apple.com/US/invoice">
-            Account Settings.
-          </Link>
-        </Text>
-        <Section>
-          <Row>
-            <Column align="center" style={footerIcon}>
-              <Img src={\`\${baseUrl}apple-logo.png\`} width="26" height="26" alt="Apple Card" />
-            </Column>
-          </Row>
-        </Section>
-        <Text style={footerLinksWrapper}>
-          <Link href="https://buy.itunes.apple.com/WebObjects/MZFinance.woa/wa/accountSummary?mt=8">
-            Account Settings
-          </Link>{' '}
-          • <Link href="https://www.apple.com/legal/itunes/us/sales.html">Terms of Sale</Link> •{' '}
-          <Link href="https://www.apple.com/legal/privacy/">Privacy Policy </Link>
-        </Text>
-        <Text style={footerCopyright}>
-          Copyright © 2023 Apple Inc. <br />{' '}
-          <Link href="https://www.apple.com/legal/">All rights reserved</Link>
-        </Text>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_2 = `import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Column,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text,
-  Row
-} from 'jsx-email';
-
-const main = {
-  fontFamily: '"Google Sans",Roboto,RobotoDraft,Helvetica,Arial,sans-serif',
-  backgroundColor: '#505050',
-  margin: '0'
-};
-
-const imgHeader = {
-  margin: 'auto'
-};
-
-const header = {
-  width: '100%',
-  backgroundColor: '#191919',
-  margin: '0 auto',
-  paddingBottom: '30px',
-  zIndex: '999'
-};
-
-const container = {
-  paddingLeft: '12px',
-  paddingRight: '12px',
-  margin: '0 auto',
-  width: '648px',
-  maxWidth: '648px',
-  position: 'relative' as const
-};
-
-const challengeLink = {
-  backgroundColor: '#505050',
-  textAlign: 'center' as const,
-  padding: '10px 0 25px 0',
-  fontSize: '13px',
-  position: 'absolute' as const,
-  width: '100%',
-  maxWidth: '648px',
-  top: '-28px',
-  margin: '0 0 16px 0'
-};
-
-const link = {
-  color: '#fff',
-  cursor: 'pointer'
-};
-
-const blueLink = {
-  color: '#15c',
-  cursor: 'pointer'
-};
-
-const heading = {
-  background: '#f0d361',
-  padding: '30px',
-  color: '#191919',
-  fontWeight: '400',
-  marginBottom: '0'
-};
-
-const section = {
-  margin: '0',
-  background: '#fff',
-  padding: '0 24px'
-};
-
-const yellowSection = {
-  background: '#f5d247',
-  padding: '30px',
-  fontSize: '18px',
-  lineHeight: '1.5'
-};
-
-const text = {
-  fontSize: '16px'
-};
-
-const cubeText = { fontSize: '32px', margin: '4px 0 0 0' };
-
-const yourChallenge = {
-  fontSize: '16px',
-  border: '6px solid #ebd473',
-  padding: '20px',
-  margin: '0 0 40px 0'
-};
-
-const sectionPro = {
-  marginTop: '40px',
-  marginBottom: '24px',
-  textAlign: 'center' as const,
-  background: '#0b112a',
-  color: '#fff',
-  padding: '35px 20px 30px 20px',
-  border: '6px solid #2138c6'
-};
-
-const imagePro = { margin: '0 auto 30px auto' };
-
-const resourcesTitle = {
-  fontWeight: '900',
-  lineHeight: '1.1',
-  marginTop: '-40px',
-  fontSize: '18px'
-};
-
-const ideasTitle = {
-  fontWeight: '900',
-  lineHeight: '1.1',
-  fontSize: '18px'
-};
-
-const ideas = {
-  width: '50%',
-  paddingRight: '10px'
-};
-
-const resources = {
-  width: '50%',
-  paddingLeft: '10px'
-};
-
-const card = {
-  padding: '20px',
-  margin: '0 0 20px 0',
-  borderRadius: '10px',
-  fontSize: '36px',
-  textAlign: 'center' as const
-};
-
-const yellowCard = {
-  ...card,
-  background: '#fff4c8',
-  border: '1px solid #f4d247'
-};
-
-const blueCard = {
-  ...card,
-  background: '#d9f6ff',
-  border: '1px solid #92bfd0'
-};
-
-const textCard = {
-  fontSize: '13px',
-  textAlign: 'left' as const
-};
-
-const goToChallenge = {
-  margin: '40px 0 120px 0',
-  textAlign: 'center' as const
-};
-
-const footer = {
-  background: '#fff',
-  color: '#505050',
-  padding: '0 24px',
-  marginBottom: '48px'
-};
-
-const footerText = {
-  fontSize: '13px'
-};
-
-const footerLink = {
-  textDecoration: 'underline',
-  color: '#505050',
-  cursor: 'pointer'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const templateName = 'Codepen Challengers';
-
-export const Template = () => (
-  <Html>
-    <Head />
-    <Preview>#CodePenChallenge: Cubes</Preview>
-    <Body style={main}>
-      <Section style={header}>
-        <Img
-          style={imgHeader}
-          src={\`\${baseUrl}codepen-challengers.png\`}
-          width={600}
-          alt="codepen"
-        />
-      </Section>
-      <Container style={container}>
-        <Text style={challengeLink}>
-          <Link style={link}>View this Challenge on CodePen</Link>
-        </Text>
-
-        <Heading style={heading}>
-          <strong>This week:</strong> #CodePenChallenge: <Text style={cubeText}>Cubes</Text>
-        </Heading>
-
-        <Section style={section}>
-          <Text style={text}>The Shape challenge continues!</Text>
-
-          <Text style={text}>
-            Last week, we kicked things off with round shapes. We "rounded" up the Pens from week
-            one in our <Link style={blueLink}>#CodePenChallenge: Round</Link> collection.
-          </Text>
-
-          <Text style={text}>This week, we move on to cubes 🧊</Text>
-
-          <Text style={text}>
-            Creating cubes in the browser is all about mastery of illusion. Take control of
-            perspective and shadows and you can make the magic of 3D on a flat screen 🧙
-          </Text>
-
-          <Text style={text}>
-            This week is a fun chance to work on your CSS shape-building skills, or dig into a 3D
-            JavaScript library like Three.js.
-          </Text>
-
-          <Text style={text}>
-            This week's starter template features an ice cube emoji to help inspire a "cool" idea
-            for your Pen. As always, the template is just as jumping off point. Feel free to
-            incorporate the 🧊 in your creation, add more elements, or freeze it out completely and
-            start over from scratch!
-          </Text>
-
-          <Text style={yourChallenge}>
-            💪 <strong>Your Challenge:</strong>{' '}
-            <Link style={blueLink}>create a Pen that includes cube shapes.</Link>
-          </Text>
-
-          <Img src={\`\${baseUrl}codepen-cube.png\`} width={600} alt="codepen" />
-
-          <Section style={sectionPro}>
-            <Img style={imagePro} src={\`\${baseUrl}codepen-pro.png\`} width={250} alt="codepen" />
-
-            <Text>
-              CodePen PRO combines a bunch of features that can help any front-end designer or
-              developer at any experience level.
-            </Text>
-            <Button
-              height={42}
-              width={108}
-              textColor="#fff"
-              fontSize={15}
-              backgroundColor="#2138c6"
-            >
-              <strong>Learn More</strong>
-            </Button>
-          </Section>
-        </Section>
-
-        <Text style={yellowSection}>
-          <strong>To participate:</strong> <Link style={blueLink}>Create a Pen →</Link> and tag it{' '}
-          <Link style={blueLink}>
-            <strong>codepenchallenge</strong>
-          </Link>{' '}
-          and
-          <Link style={blueLink}>
-            {' '}
-            <strong>cpc-cubes</strong>
-          </Link>
-          . We'll be watching and gathering the Pens into a Collection, and sharing on{' '}
-          <Link style={blueLink}>Twitter</Link> and <Link style={blueLink}>Instagram</Link> (Use the
-          #CodePenChallenge tag on Twitter and Instagram as well).
-        </Text>
-
-        <Section style={section}>
-          <Row>
-            <Column style={ideas}>
-              <Text style={ideasTitle}>IDEAS!</Text>
-
-              <Section style={yellowCard}>
-                🌟
-                <Text style={textCard}>
-                  This week we move from 2 dimensions to three! Maybe you could exercise your{' '}
-                  <Link style={blueLink}>perspective</Link> in CSS to create a 3D cube. Or, you can
-                  try out creating 3D shapes in JavaScript, using{' '}
-                  <Link style={blueLink}>WebGL</Link> or building a{' '}
-                  <Link style={blueLink}>Three.js scene</Link>.
-                </Text>
-              </Section>
-
-              <Section style={yellowCard}>
-                🌟
-                <Text style={textCard}>
-                  There's more to cubes than just six square sides. There are variations on the cube
-                  that could be fun to play with this week:{' '}
-                  <Link style={blueLink}>cuboid shapes</Link> are hexahedrons with faces that aren't
-                  always squares. And if you want to really push the boundaries of shape, consider
-                  the 4 dimensional <Link style={blueLink}>tesseract!</Link>
-                </Text>
-              </Section>
-
-              <Section style={yellowCard}>
-                🌟
-                <Text style={textCard}>
-                  Here's a mind-bending idea that can combine the round shapes from week one with
-                  this week's cube theme: <Link style={blueLink}>Spherical Cubes</Link> 😳 Solving
-                  longstanding mathematical mysteries is probably outside the scope of a CodePen
-                  challenge, but you could use front-end tools to explore fitting spheres into
-                  cubes, or vice-versa.
-                </Text>
-              </Section>
-            </Column>
-            <Column style={resources}>
-              <Text style={resourcesTitle}>RESOURCES!</Text>
-
-              <Section style={blueCard}>
-                📖
-                <Text style={textCard}>
-                  Learn all about <Link style={blueLink}>How CSS Perspective Works</Link> and how to
-                  build a 3D CSS cube from scratch in Amit Sheen's in-depth tutorial for CSS-Tricks.
-                  Or, check out stunning examples of WebGL cubes from Matthias Hurrle:{' '}
-                  <Link style={blueLink}>Just Ice</Link> and <Link style={blueLink}>Posing</Link>.
-                </Text>
-              </Section>
-
-              <Section style={blueCard}>
-                📖
-                <Text style={textCard}>
-                  Want to go beyond the square cube? Draw inspiration from EntropyReversed's{' '}
-                  <Link style={blueLink}>Pulsating Tesseract</Link>, Josetxu's{' '}
-                  <Link style={blueLink}>Rainbow Cuboid Loader</Link>, or Ana Tudor's{' '}
-                  <Link style={blueLink}>Pure CSS cuboid jellyfish</Link>.
-                </Text>
-              </Section>
-
-              <Section style={blueCard}>
-                📖
-                <Text style={textCard}>
-                  Did that spherical cubes concept pique your interest? Explore Ryan Mulligan's{' '}
-                  <Link style={blueLink}>Cube Sphere</Link>, Munir Safi's{' '}
-                  <Link style={blueLink}>3D Sphere to Cube Animation With Virtual Trackball</Link>{' '}
-                  and Ana Tudor's <Link style={blueLink}>Infinitely unpack prism</Link> for more
-                  mindbending cube concepts that test the boundaries of how shapes interact with
-                  each other.
-                </Text>
-              </Section>
-            </Column>
-          </Row>
-        </Section>
-
-        <Section style={goToChallenge}>
-          <Button
-            width={330}
-            height={62}
-            fontSize={26}
-            backgroundColor="#222"
-            color="#15c"
-            borderRadius={4}
-          >
-            Go to Challenge Page
-          </Button>
-        </Section>
-
-        <Section style={footer}>
-          <Text style={footerText}>
-            You can adjust your <Link style={footerLink}>email preferences</Link> any time, or{' '}
-            <Link style={footerLink}>instantly opt out</Link> of emails of this kind. Need help with
-            anything? Hit up <Link style={footerLink}>support</Link>.
-          </Text>
-        </Section>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_3 = `import { Body, Button, Container, Head, Html, Img, Link, Preview, Section, Text } from 'jsx-email';
-
-interface DropboxResetPasswordEmailProps {
-  userFirstname?: string;
-  resetPasswordLink?: string;
-}
-
-const main = {
-  backgroundColor: '#f6f9fc',
-  padding: '10px 0'
-};
-
-const container = {
-  backgroundColor: '#ffffff',
-  border: '1px solid #f0f0f0',
-  padding: '45px'
-};
-
-const text = {
-  fontSize: '16px',
-  fontFamily:
-    "'Open Sans', 'HelveticaNeue-Light', 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif",
-  fontWeight: '300',
-  color: '#404040',
-  lineHeight: '26px'
-};
-
-const anchor = {
-  textDecoration: 'underline'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  userFirstname: 'Bruce',
-  resetPasswordLink: 'https://dropbox.com'
-} as DropboxResetPasswordEmailProps;
-
-export const templateName = 'Dropbox Reset Password';
-
-export const Template = ({ userFirstname, resetPasswordLink }: DropboxResetPasswordEmailProps) => {
-  return (
-    <Html>
-      <Head />
-      <Preview>Dropbox reset your password</Preview>
-      <Body style={main}>
-        <Container style={container}>
-          <Img src={\`\${baseUrl}dropbox-logo.png\`} width="40" height="33" alt="Dropbox" />
-          <Section>
-            <Text style={text}>Hi {userFirstname},</Text>
-            <Text style={text}>
-              Someone recently requested a password change for your Dropbox account. If this was
-              you, you can set a new password here:
-            </Text>
-            <Button
-              backgroundColor="#007ee6"
-              borderRadius={4}
-              textColor="#fff"
-              fontSize={15}
-              width={210}
-              height={42}
-              href={resetPasswordLink}
-            >
-              Reset password
-            </Button>
-            <Text style={text}>
-              If you don&apos;t want to change your password or didn&apos;t request this, just
-              ignore and delete this message.
-            </Text>
-            <Text style={text}>
-              To keep your account secure, please don&apos;t forward this email to anyone. See our
-              Help Center for{' '}
-              <Link style={anchor} href="https://dropbox.com">
-                more security tips.
-              </Link>
-            </Text>
-            <Text style={text}>Happy Dropboxing!</Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
-  );
-};
-`;
-
-const __vite_glob_2_4 = `import { Body, Button, Container, Head, Html, Img, Link, Preview, Section, Text } from 'jsx-email';
-
-interface GithubAccessTokenEmailProps {
-  username?: string;
-}
-
-const main = {
-  backgroundColor: '#ffffff',
-  color: '#24292e',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"'
-};
-
-const container = {
-  width: '480px',
-  margin: '0 auto',
-  padding: '20px 0 48px'
-};
-
-const title = {
-  fontSize: '24px',
-  lineHeight: 1.25
-};
-
-const section = {
-  padding: '24px',
-  border: 'solid 1px #dedede',
-  borderRadius: '5px',
-  textAlign: 'center' as const
-};
-
-const text = {
-  margin: '0 0 10px 0',
-  textAlign: 'left' as const
-};
-
-const links = {
-  textAlign: 'center' as const
-};
-
-const link = {
-  color: '#0366d6',
-  fontSize: '12px'
-};
-
-const footer = {
-  color: '#6a737d',
-  fontSize: '12px',
-  textAlign: 'center' as const,
-  marginTop: '60px'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  username: 'Batman'
-} as GithubAccessTokenEmailProps;
-
-export const templateName = 'Github Access Token';
-
-export const Template = ({ username }: GithubAccessTokenEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>A fine-grained personal access token has been added to your account</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}github.png\`} width="32" height="32" alt="Github" />
-
-        <Text style={title}>
-          <strong>@{username}</strong>, a personal access was created on your account.
-        </Text>
-
-        <Section style={section}>
-          <Text style={text}>
-            Hey <strong>{username}</strong>!
-          </Text>
-          <Text style={text}>
-            A fine-grained personal access token (<Link>resend</Link>) was recently added to your
-            account.
-          </Text>
-
-          <Button
-            width={152}
-            height={42}
-            fontSize={14}
-            backgroundColor="#28a745"
-            textColor="#fff"
-            borderRadius={8}
-          >
-            View your token
-          </Button>
-        </Section>
-        <Text style={links}>
-          <Link style={link}>Your security audit log</Link> ・{' '}
-          <Link style={link}>Contact support</Link>
-        </Text>
-
-        <Text style={footer}>
-          GitHub, Inc. ・88 Colin P Kelly Jr Street ・San Francisco, CA 94107
-        </Text>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_5 = `import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text
-} from 'jsx-email';
-
-interface LinearLoginCodeEmailProps {
-  validationCode?: string;
-}
-
-const logo = {
-  borderRadius: 21,
-  width: 42,
-  height: 42
-};
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const container = {
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  width: '560px'
-};
-
-const heading = {
-  fontSize: '24px',
-  letterSpacing: '-0.5px',
-  lineHeight: '1.3',
-  fontWeight: '400',
-  color: '#484848',
-  padding: '17px 0 0'
-};
-
-const paragraph = {
-  margin: '0 0 15px',
-  fontSize: '15px',
-  lineHeight: '1.4',
-  color: '#3c4149'
-};
-
-const buttonContainer = {
-  padding: '27px 0 27px'
-};
-
-const reportLink = {
-  fontSize: '14px',
-  color: '#b4becc'
-};
-
-const hr = {
-  borderColor: '#dfe1e4',
-  margin: '42px 0 26px'
-};
-
-const code = {
-  fontFamily: 'monospace',
-  fontWeight: '700',
-  padding: '1px 4px',
-  backgroundColor: '#dfe1e4',
-  letterSpacing: '-0.3px',
-  fontSize: '21px',
-  borderRadius: '4px',
-  color: '#3c4149'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  validationCode: 'tt226-5398x'
-} as LinearLoginCodeEmailProps;
-
-export const templateName = 'Linear Login Code';
-
-export const Template = ({ validationCode }: LinearLoginCodeEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Your login code for Linear</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}linear-logo.png\`} width="42" height="42" alt="Linear" style={logo} />
-        <Heading style={heading}>Your login code for Linear</Heading>
-        <Section style={buttonContainer}>
-          <Button
-            width={152}
-            height={40}
-            backgroundColor="#5e6ad2"
-            borderRadius={3}
-            textColor="#fff"
-            fontSize={15}
-            href="https://linear.app"
-          >
-            Login to Linear
-          </Button>
-        </Section>
-        <Text style={paragraph}>
-          This link and code will only be valid for the next 5 minutes. If the link does not work,
-          you can use the login verification code directly:
-        </Text>
-        <code style={code}>{validationCode}</code>
-        <Hr style={hr} />
-        <Link href="https://linear.app" style={reportLink}>
-          Linear
-        </Link>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_6 = `import { Body, Container, Head, Heading, Html, Img, Link, Preview, Text } from 'jsx-email';
-
-interface NotionMagicLinkEmailProps {
-  loginCode?: string;
-}
-
-const main = {
-  backgroundColor: '#ffffff'
-};
-
-const container = {
-  paddingLeft: '12px',
-  paddingRight: '12px',
-  margin: '0 auto'
-};
-
-const h1 = {
-  color: '#333',
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: '24px',
-  fontWeight: 'bold',
-  margin: '40px 0',
-  padding: '0'
-};
-
-const link = {
-  color: '#2754C5',
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: '14px',
-  textDecoration: 'underline'
-};
-
-const text = {
-  color: '#333',
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: '14px',
-  margin: '24px 0'
-};
-
-const footer = {
-  color: '#898989',
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: '12px',
-  lineHeight: '22px',
-  marginTop: '12px',
-  marginBottom: '24px'
-};
-
-const code = {
-  display: 'inline-block',
-  padding: '16px 4.5%',
-  width: '90.5%',
-  backgroundColor: '#f4f4f4',
-  borderRadius: '5px',
-  border: '1px solid #eee',
-  color: '#333'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  loginCode: 'sparo-ndigo-amurt-secan'
-} as NotionMagicLinkEmailProps;
-
-export const templateName = 'Notion Magic Link';
-
-export const Template = ({ loginCode }: NotionMagicLinkEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Log in with this magic link</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Heading style={h1}>Login</Heading>
-        <Link
-          href="https://notion.so"
-          target="_blank"
-          style={{
-            ...link,
-            display: 'block',
-            marginBottom: '16px'
-          }}
-        >
-          Click here to log in with this magic link
-        </Link>
-        <Text style={{ ...text, marginBottom: '14px' }}>
-          Or, copy and paste this temporary login code:
-        </Text>
-        <code style={code}>{loginCode}</code>
-        <Text
-          style={{
-            ...text,
-            color: '#ababab',
-            marginTop: '14px',
-            marginBottom: '16px'
-          }}
-        >
-          If you didn&apos;t try to login, you can safely ignore this email.
-        </Text>
-        <Text
-          style={{
-            ...text,
-            color: '#ababab',
-            marginTop: '12px',
-            marginBottom: '38px'
-          }}
-        >
-          Hint: You can set a permanent password in Settings & members → My account.
-        </Text>
-        <Img src={\`\${baseUrl}notion-logo.png\`} width="32" height="32" alt="Notion's Logo" />
-        <Text style={footer}>
-          <Link href="https://notion.so" target="_blank" style={{ ...link, color: '#898989' }}>
-            Notion.so
-          </Link>
-          , the all-in-one-workspace
-          <br />
-          for your notes, tasks, wikis, and databases.
-        </Text>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_7 = `import {
-  Body,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text
-} from 'jsx-email';
-
-interface RaycastMagicLinkEmailProps {
-  magicLink?: string;
-}
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const container = {
-  margin: '0 auto',
-  padding: '20px 25px 48px',
-  backgroundImage: 'url("/assets/raycast-bg.png")',
-  backgroundPosition: 'bottom',
-  backgroundRepeat: 'no-repeat, no-repeat'
-};
-
-const heading = {
-  fontSize: '28px',
-  fontWeight: 'bold',
-  marginTop: '48px'
-};
-
-const body = {
-  margin: '24px 0'
-};
-
-const paragraph = {
-  fontSize: '16px',
-  lineHeight: '26px'
-};
-
-const link = {
-  color: '#FF6363'
-};
-
-const hr = {
-  borderColor: '#dddddd',
-  marginTop: '48px'
-};
-
-const footer = {
-  color: '#8898aa',
-  fontSize: '12px',
-  marginLeft: '4px'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  magicLink: 'https://raycast.com'
-} as RaycastMagicLinkEmailProps;
-
-export const templateName = 'Raycast Magic Link';
-
-export const Template = ({ magicLink }: RaycastMagicLinkEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Log in with this magic link.</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}raycast-logo.png\`} width={48} height={48} alt="Raycast" />
-        <Heading style={heading}>🪄 Your magic link</Heading>
-        <Section style={body}>
-          <Text style={paragraph}>
-            <Link style={link} href={magicLink}>
-              👉 Click here to sign in 👈
-            </Link>
-          </Text>
-          <Text style={paragraph}>If you didn't request this, please ignore this email.</Text>
-        </Section>
-        <Text style={paragraph}>
-          Best,
-          <br />- Raycast Team
-        </Text>
-        <Hr style={hr} />
-        <Img
-          src={\`\${baseUrl}raycast-logo.png\`}
-          width={32}
-          height={32}
-          style={{
-            WebkitFilter: 'grayscale(100%)',
-            filter: 'grayscale(100%)',
-            margin: '20px 0'
-          }}
-        />
-        <Text style={footer}>Raycast Technologies Inc.</Text>
-        <Text style={footer}>2093 Philadelphia Pike #3222, Claymont, DE 19703</Text>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_8 = `import {
-  Body,
-  Container,
-  Column,
-  Head,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Text
-} from 'jsx-email';
-
-interface TwitchResetPasswordEmailProps {
-  username?: string;
-  updatedDate?: Date;
-}
-
-const fontFamily = 'HelveticaNeue,Helvetica,Arial,sans-serif';
-
-const main = {
-  backgroundColor: '#efeef1',
-  fontFamily
-};
-
-const paragraph = {
-  lineHeight: 1.5,
-  fontSize: 14
-};
-
-const container = {
-  width: '580px',
-  margin: '30px auto',
-  backgroundColor: '#ffffff'
-};
-
-const footer = {
-  width: '580px',
-  margin: '0 auto'
-};
-
-const content = {
-  padding: '5px 50px 10px 60px'
-};
-
-const logo = {
-  display: 'flex',
-  justifyContent: 'center',
-  alingItems: 'center',
-  padding: 30
-};
-
-const sectionsBorders = {
-  width: '100%',
-  display: 'flex'
-};
-
-const sectionBorder = {
-  borderBottom: '1px solid rgb(238,238,238)',
-  width: '249px'
-};
-
-const sectionCenter = {
-  borderBottom: '1px solid rgb(145,71,255)',
-  width: '102px'
-};
-
-const link = {
-  textDecoration: 'underline'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  username: 'Batman',
-  updatedDate: new Date('June 23, 2022 4:06:00 pm UTC')
-} as TwitchResetPasswordEmailProps;
-
-export const templateName = 'Twitch Reset Password';
-
-export const Template = ({ username, updatedDate }: TwitchResetPasswordEmailProps) => {
-  const formattedDate = new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-    timeStyle: 'medium'
-  }).format(updatedDate);
-
-  return (
-    <Html>
-      <Head />
-      <Preview>You updated the password for your Twitch account</Preview>
-      <Body style={main}>
-        <Container style={container}>
-          <Section style={logo}>
-            <Img width={114} src={\`\${baseUrl}twitch-logo.png\`} />
-          </Section>
-          <Section style={sectionsBorders}>
-            <Row>
-              <Column style={sectionBorder} />
-              <Column style={sectionCenter} />
-              <Column style={sectionBorder} />
-            </Row>
-          </Section>
-          <Section style={content}>
-            <Text style={paragraph}>Hi {username},</Text>
-            <Text style={paragraph}>
-              You updated the password for your Twitch account on {formattedDate}. If this was you,
-              then no further action is required.
-            </Text>
-            <Text style={paragraph}>
-              However if you did NOT perform this password change, please{' '}
-              <Link href="#" style={link}>
-                reset your account password
-              </Link>{' '}
-              immediately.
-            </Text>
-            <Text style={paragraph}>
-              Remember to use a password that is both strong and unique to your Twitch account. To
-              learn more about how to create a strong and unique password,{' '}
-              <Link href="#" style={link}>
-                click here.
-              </Link>
-            </Text>
-            <Text style={paragraph}>
-              Still have questions? Please contact{' '}
-              <Link href="#" style={link}>
-                Twitch Support
-              </Link>
-            </Text>
-            <Text style={paragraph}>
-              Thanks,
-              <br />
-              Twitch Support Team
-            </Text>
-          </Section>
-        </Container>
-
-        <Section style={footer}>
-          <Row>
-            <Column align="right" style={{ width: '50%', paddingRight: '8px' }}>
-              <Img src={\`\${baseUrl}twitch-icon-twitter.png\`} />
-            </Column>
-            <Column align="left" style={{ width: '50%', paddingLeft: '8px' }}>
-              <Img src={\`\${baseUrl}twitch-icon-facebook.png\`} />
-            </Column>
-          </Row>
-          <Row>
-            <Text style={{ textAlign: 'center', color: '#706a7b' }}>
-              © 2022 Twitch, All Rights Reserved <br />
-              350 Bush Street, 2nd Floor, San Francisco, CA, 94104 - USA
-            </Text>
-          </Row>
-        </Section>
-      </Body>
-    </Html>
-  );
-};
-`;
-
-const __vite_glob_2_9 = `import {
-  Body,
-  Container,
-  Column,
-  Head,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Text
-} from 'jsx-email';
-
-const main = {
-  backgroundColor: '#dbddde',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const sectionLogo = {
-  padding: '0 40px'
-};
-
-const headerBlue = {
-  marginTop: '-1px'
-};
-
-const container = {
-  margin: '30px auto',
-  width: '610px',
-  backgroundColor: '#fff',
-  borderRadius: 5,
-  overflow: 'hidden'
-};
-
-const containerContact = {
-  backgroundColor: '#f0fcff',
-  width: '90%',
-  borderRadius: '5px',
-  overflow: 'hidden',
-  paddingLeft: '20px'
-};
-
-const heading = {
-  fontSize: '14px',
-  lineHeight: '26px',
-  fontWeight: '700',
-  color: '#004dcf'
-};
-
-const paragraphContent = {
-  padding: '0 40px'
-};
-
-const paragraphList = {
-  paddingLeft: 40
-};
-
-const paragraph = {
-  fontSize: '14px',
-  lineHeight: '22px',
-  color: '#3c4043'
-};
-
-const link = {
-  ...paragraph,
-  color: '#004dcf'
-};
-
-const hr = {
-  borderColor: '#e8eaed',
-  margin: '20px 0'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const templateName = 'Google Play Policy Update';
-
-export const Template = () => (
-  <Html>
-    <Head />
-    <Preview>Google Play developers</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Section>
-          <Row>
-            <Column>
-              <Img
-                style={headerBlue}
-                src={\`\${baseUrl}google-play-header.png\`}
-                width="305"
-                height="28"
-                alt="Google Play developers header blue transparent"
-              />
-              <Img
-                style={sectionLogo}
-                src={\`\${baseUrl}google-play-logo.png\`}
-                width="155"
-                height="31"
-                alt="Google Play"
-              />
-            </Column>
-          </Row>
-        </Section>
-
-        <Section style={paragraphContent}>
-          <Hr style={hr} />
-          <Text style={heading}>DEVELOPER UPDATE</Text>
-          <Text style={paragraph}>Hello Google Play Developer,</Text>
-          <Text style={paragraph}>
-            We strive to make Google Play a safe and trusted experience for users.
-          </Text>
-          <Text style={paragraph}>
-            We've added clarifications to our{' '}
-            <Link href="https://notifications.google.com" style={link}>
-              Target API Level policy
-            </Link>
-            . Because this is a clarification, our enforcement standards and practices for this
-            policy remain the same.
-          </Text>
-        </Section>
-        <Section style={paragraphList}>
-          <Text style={paragraph}>
-            We’re noting exceptions to the{' '}
-            <Link href="https://notifications.google.com" style={link}>
-              Target API Level policy
-            </Link>
-            , which can be found in our updated{' '}
-            <Link href="https://notifications.google.com" style={link}>
-              Help Center article.
-            </Link>
-            These exceptions include permanently private apps and apps that target automotive or
-            wearables form factors and are bundled within the same package.{' '}
-            <Link href="https://notifications.google.com" style={link}>
-              Learn more
-            </Link>
-          </Text>
-        </Section>
-        <Section style={paragraphContent}>
-          <Text style={paragraph}>
-            We’re also extending the deadline to give you more time to adjust to these changes. Now,
-            apps that target API level 29 or below will start experiencing reduced distribution
-            starting <b>Jan 31, 2023</b> instead of Nov 1, 2022. If you need more time to update
-            your app, you can request an extension to keep your app discoverable to all users until
-            May 1, 2023.
-          </Text>
-          <Hr style={hr} />
-        </Section>
-
-        <Section style={paragraphContent}>
-          <Text style={paragraph}>Thank you,</Text>
-          <Text style={{ ...paragraph, fontSize: '20px' }}>The Google Play team</Text>
-        </Section>
-
-        <Section style={containerContact}>
-          <Row>
-            <Text style={paragraph}>Connect with us</Text>
-          </Row>
-          <Row
-            align="left"
-            style={{
-              width: '84px',
-              float: 'left'
-            }}
-          >
-            <Column style={{ paddingRight: '4px' }}>
-              <Link href="https://notifications.google.com">
-                <Img width="28" height="28" src={\`\${baseUrl}google-play-chat.png\`} />
-              </Link>
-            </Column>
-            <Column style={{ paddingRight: '4px' }}>
-              <Link href="https://notifications.google.com">
-                <Img width="28" height="28" src={\`\${baseUrl}google-play-icon.png\`} />
-              </Link>
-            </Column>
-            <Column style={{ paddingRight: '4px' }}>
-              <Link href="https://notifications.google.com">
-                <Img width="28" height="28" src={\`\${baseUrl}google-play-academy.png\`} />
-              </Link>
-            </Column>
-          </Row>
-          <Row>
-            <Img width="540" height="48" src={\`\${baseUrl}google-play-footer.png\`} />
-          </Row>
-        </Section>
-
-        <Section style={{ ...paragraphContent, paddingBottom: 30 }}>
-          <Text
-            style={{
-              ...paragraph,
-              fontSize: '12px',
-              textAlign: 'center',
-              margin: 0
-            }}
-          >
-            © 2022 Google LLC 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA
-          </Text>
-          <Text
-            style={{
-              ...paragraph,
-              fontSize: '12px',
-              textAlign: 'center',
-              margin: 0
-            }}
-          >
-            You have received this mandatory email service announcement to update you about
-            important changes to your Google Play Developer account.
-          </Text>
-        </Section>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_10 = `import {
-  Body,
-  Container,
-  Column,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Text
-} from 'jsx-email';
-
-const paddingX = {
-  paddingLeft: '40px',
-  paddingRight: '40px'
-};
-
-const paddingY = {
-  paddingTop: '22px',
-  paddingBottom: '22px'
-};
-
-const paragraph = {
-  margin: '0',
-  lineHeight: '2'
-};
-
-const global = {
-  paddingX,
-  paddingY,
-  defaultPadding: {
-    ...paddingX,
-    ...paddingY
-  },
-  paragraphWithBold: { ...paragraph, fontWeight: 'bold' },
-  heading: {
-    fontSize: '32px',
-    lineHeight: '1.3',
-    fontWeight: '700',
-    textAlign: 'center',
-    letterSpacing: '-1px'
-  } as React.CSSProperties,
-  text: {
-    ...paragraph,
-    color: '#747474',
-    fontWeight: '500'
-  },
-  button: {
-    border: '1px solid #929292',
-    fontSize: '16px',
-    textDecoration: 'none',
-    padding: '10px 0px',
-    width: '220px',
-    display: 'block',
-    textAlign: 'center',
-    fontWeight: 500,
-    color: '#000'
-  } as React.CSSProperties,
-  hr: {
-    borderColor: '#E5E5E5',
-    margin: '0'
-  }
-};
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const container = {
-  margin: '10px auto',
-  width: '600px',
-  border: '1px solid #E5E5E5'
-};
-
-const track = {
-  container: {
-    padding: '22px 40px',
-    backgroundColor: '#F7F7F7'
-  },
-  number: {
-    margin: '12px 0 0 0',
-    fontWeight: 500,
-    lineHeight: '1.4',
-    color: '#6F6F6F'
-  }
-};
-
-const message = {
-  padding: '40px 74px',
-  textAlign: 'center'
-} as React.CSSProperties;
-
-const adressTitle = {
-  ...paragraph,
-  fontSize: '15px',
-  fontWeight: 'bold'
-};
-
-const recomendationsText = {
-  margin: '0',
-  fontSize: '15px',
-  lineHeight: '1',
-  paddingLeft: '10px',
-  paddingRight: '10px'
-};
-
-const recomendations = {
-  container: {
-    padding: '20px 0'
-  },
-  product: {
-    verticalAlign: 'top',
-    textAlign: 'left' as const,
-    paddingLeft: '2px',
-    paddingRight: '2px'
-  },
-  title: { ...recomendationsText, paddingTop: '12px', fontWeight: '500' },
-  text: {
-    ...recomendationsText,
-    paddingTop: '4px',
-    color: '#747474'
-  }
-};
-
-const menu = {
-  container: {
-    paddingLeft: '20px',
-    paddingRight: '20px',
-    paddingTop: '20px',
-    backgroundColor: '#F7F7F7'
-  },
-  content: {
-    ...paddingY,
-    paddingLeft: '20px',
-    paddingRight: '20px'
-  },
-  title: {
-    paddingLeft: '20px',
-    paddingRight: '20px',
-    fontWeight: 'bold'
-  },
-  text: {
-    fontSize: '13.5px',
-    marginTop: 0,
-    fontWeight: 500,
-    color: '#000'
-  },
-  tel: {
-    paddingLeft: '20px',
-    paddingRight: '20px',
-    paddingTop: '32px',
-    paddingBottom: '22px'
-  }
-};
-
-const categories = {
-  container: {
-    width: '370px',
-    margin: 'auto',
-    paddingTop: '12px'
-  },
-  text: {
-    fontWeight: '500',
-    color: '#000'
-  }
-};
-
-const footer = {
-  policy: {
-    width: '166px',
-    margin: 'auto'
-  },
-  text: {
-    margin: '0',
-    color: '#AFAFAF',
-    fontSize: '13px',
-    textAlign: 'center'
-  } as React.CSSProperties
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const templateName = 'Nike Receipt';
-
-export const Template = () => (
-  <Html>
-    <Head />
-    <Preview>Get your order summary, estimated delivery date and more</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Section style={track.container}>
-          <Row>
-            <Column>
-              <Text style={global.paragraphWithBold}>Tracking Number</Text>
-              <Text style={track.number}>1ZV218970300071628</Text>
-            </Column>
-            <Column align="right">
-              <Link style={global.button}>Track Package</Link>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={global.hr} />
-        <Section style={message}>
-          <Img
-            src={\`\${baseUrl}nike-logo.png\`}
-            width="66"
-            height="22"
-            alt="Nike"
-            style={{ margin: 'auto' }}
-          />
-          <Heading style={global.heading}>It's On Its Way.</Heading>
-          <Text style={global.text}>
-            You order's is on its way. Use the link above to track its progress.
-          </Text>
-          <Text style={{ ...global.text, marginTop: 24 }}>
-            We´ve also charged your payment method for the cost of your order and will be removing
-            any authorization holds. For payment details, please visit your Orders page on Nike.com
-            or in the Nike app.
-          </Text>
-        </Section>
-        <Hr style={global.hr} />
-        <Section style={global.defaultPadding}>
-          <Text style={adressTitle}>Shipping to: Bruce Wayne</Text>
-          <Text style={{ ...global.text, fontSize: 14 }}>
-            2125 Chestnut St, San Francisco, CA 94123
-          </Text>
-        </Section>
-        <Hr style={global.hr} />
-        <Section style={{ ...paddingX, paddingTop: '40px', paddingBottom: '40px' }}>
-          <Row>
-            <Column>
-              <Img
-                src={\`\${baseUrl}nike-product.png\`}
-                alt="Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey"
-                style={{ float: 'left' }}
-                width="260px"
-              />
-            </Column>
-            <Column style={{ verticalAlign: 'top', paddingLeft: '12px' }}>
-              <Text style={{ ...paragraph, fontWeight: '500' }}>
-                Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey
-              </Text>
-              <Text style={global.text}>Size L (12–14)</Text>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={global.hr} />
-        <Section style={global.defaultPadding}>
-          <Row style={{ display: 'inline-flex', marginBottom: 40 }}>
-            <Column style={{ width: '170px' }}>
-              <Text style={global.paragraphWithBold}>Order Number</Text>
-              <Text style={track.number}>C0106373851</Text>
-            </Column>
-            <Column>
-              <Text style={global.paragraphWithBold}>Order Date</Text>
-              <Text style={track.number}>Sep 22, 2022</Text>
-            </Column>
-          </Row>
-          <Row>
-            <Column align="center">
-              <Link style={global.button}>Order Status</Link>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={global.hr} />
-        <Section style={paddingY}>
-          <Row>
-            <Text style={global.heading}>Top Picks For You</Text>
-          </Row>
-          <Row style={recomendations.container}>
-            <Column style={{ ...recomendations.product, paddingLeft: '4px' }} align="center">
-              <Img
-                src={\`\${baseUrl}nike-recomendation-1.png\`}
-                alt="Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey"
-                width="100%"
-              />
-              <Text style={recomendations.title}>USWNT 2022/23 Stadium Home</Text>
-              <Text style={recomendations.text}>Women's Nike Dri-FIT Soccer Jersey</Text>
-            </Column>
-            <Column style={recomendations.product} align="center">
-              <Img
-                src={\`\${baseUrl}nike-recomendation-2.png\`}
-                alt="Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey"
-                width="100%"
-              />
-              <Text style={recomendations.title}>Brazil 2022/23 Stadium Goalkeeper</Text>
-              <Text style={recomendations.text}>
-                Men's Nike Dri-FIT Short-Sleeve Football Shirt
-              </Text>
-            </Column>
-            <Column style={recomendations.product} align="center">
-              <Img
-                src={\`\${baseUrl}nike-recomendation-4.png\`}
-                alt="Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey"
-                width="100%"
-              />
-              <Text style={recomendations.title}>FFF</Text>
-              <Text style={recomendations.text}>Women's Soccer Jacket</Text>
-            </Column>
-            <Column style={{ ...recomendations.product, paddingRight: '4px' }} align="center">
-              <Img
-                src={\`\${baseUrl}nike-recomendation-4.png\`}
-                alt="Brazil 2022/23 Stadium Away Women's Nike Dri-FIT Soccer Jersey"
-                width="100%"
-              />
-              <Text style={recomendations.title}>FFF</Text>
-              <Text style={recomendations.text}>Women's Nike Pre-Match Football Top</Text>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={global.hr} />
-        <Section style={menu.container}>
-          <Row>
-            <Text style={menu.title}>Get Help</Text>
-          </Row>
-          <Row style={menu.content}>
-            <Column style={{ width: '33%' }} colSpan={1}>
-              <Link href="/" style={menu.text}>
-                Shipping Status
-              </Link>
-            </Column>
-            <Column style={{ width: '33%' }} colSpan={1}>
-              <Link href="/" style={menu.text}>
-                Shipping & Delivery
-              </Link>
-            </Column>
-            <Column style={{ width: '33%' }} colSpan={1}>
-              <Link href="/" style={menu.text}>
-                Returns & Exchanges
-              </Link>
-            </Column>
-          </Row>
-          <Row style={{ ...menu.content, paddingTop: '0' }}>
-            <Column style={{ width: '33%' }} colSpan={1}>
-              <Link href="/" style={menu.text}>
-                How to Return
-              </Link>
-            </Column>
-            <Column style={{ width: '66%' }} colSpan={2}>
-              <Link href="/" style={menu.text}>
-                Contact Options
-              </Link>
-            </Column>
-          </Row>
-          <Hr style={global.hr} />
-          <Row style={menu.tel}>
-            <Column>
-              <Row>
-                <Column style={{ width: '16px' }}>
-                  <Img
-                    src={\`\${baseUrl}nike-phone.png\`}
-                    width="16px"
-                    height="26px"
-                    style={{ paddingRight: '14px' }}
-                  />
-                </Column>
-                <Column>
-                  <Text style={{ ...menu.text, marginBottom: '0' }}>1-800-806-6453</Text>
-                </Column>
-              </Row>
-            </Column>
-            <Column>
-              <Text
-                style={{
-                  ...menu.text,
-                  marginBottom: '0'
-                }}
-              >
-                4 am - 11 pm PT
-              </Text>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={global.hr} />
-        <Section style={paddingY}>
-          <Row>
-            <Text style={global.heading}>Nike.com</Text>
-          </Row>
-          <Row style={categories.container}>
-            <Column align="center">
-              <Link href="/" style={categories.text}>
-                Men
-              </Link>
-            </Column>
-            <Column align="center">
-              <Link href="/" style={categories.text}>
-                Women
-              </Link>
-            </Column>
-            <Column align="center">
-              <Link href="/" style={categories.text}>
-                Kids
-              </Link>
-            </Column>
-            <Column align="center">
-              <Link href="/" style={categories.text}>
-                Customize
-              </Link>
-            </Column>
-          </Row>
-        </Section>
-        <Hr style={{ ...global.hr, marginTop: '12px' }} />
-        <Section style={paddingY}>
-          <Row style={footer.policy}>
-            <Column>
-              <Text style={footer.text}>Web Version</Text>
-            </Column>
-            <Column>
-              <Text style={footer.text}>Privacy Policy</Text>
-            </Column>
-          </Row>
-          <Row>
-            <Text style={{ ...footer.text, paddingTop: 30, paddingBottom: 30 }}>
-              Please contact us if you have any questions. (If you reply to this email, we won't be
-              able to see it.)
-            </Text>
-          </Row>
-          <Row>
-            <Text style={footer.text}>© 2022 Nike, Inc. All Rights Reserved.</Text>
-          </Row>
-          <Row>
-            <Text style={footer.text}>
-              NIKE, INC. One Bowerman Drive, Beaverton, Oregon 97005, USA.
-            </Text>
-          </Row>
-        </Section>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_11 = `import { Body, Container, Head, Heading, Html, Img, Link, Section, Text } from 'jsx-email';
-
-interface PlaidVerifyIdentityEmailProps {
-  validationCode?: string;
-}
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily: 'HelveticaNeue,Helvetica,Arial,sans-serif'
-};
-
-const container = {
-  backgroundColor: '#ffffff',
-  border: '1px solid #eee',
-  borderRadius: '5px',
-  boxShadow: '0 5px 10px rgba(20,50,70,.2)',
-  marginTop: '20px',
-  width: '360px',
-  margin: '0 auto',
-  padding: '68px 0 130px'
-};
-
-const logo = {
-  margin: '0 auto'
-};
-
-const tertiary = {
-  color: '#0a85ea',
-  fontSize: '11px',
-  fontWeight: 700,
-  fontFamily: 'HelveticaNeue,Helvetica,Arial,sans-serif',
-  height: '16px',
-  letterSpacing: '0',
-  lineHeight: '16px',
-  margin: '16px 8px 8px 8px',
-  textTransform: 'uppercase' as const,
-  textAlign: 'center' as const
-};
-
-const secondary = {
-  color: '#000',
-  display: 'inline-block',
-  fontFamily: 'HelveticaNeue-Medium,Helvetica,Arial,sans-serif',
-  fontSize: '20px',
-  fontWeight: 500,
-  lineHeight: '24px',
-  marginBottom: '0',
-  marginTop: '0',
-  textAlign: 'center' as const
-};
-
-const codeContainer = {
-  background: 'rgba(0,0,0,.05)',
-  borderRadius: '4px',
-  margin: '16px auto 14px',
-  verticalAlign: 'middle',
-  width: '280px'
-};
-
-const code = {
-  color: '#000',
-  display: 'inline-block',
-  fontFamily: 'HelveticaNeue-Bold',
-  fontSize: '32px',
-  fontWeight: 700,
-  letterSpacing: '6px',
-  lineHeight: '40px',
-  paddingBottom: '8px',
-  paddingTop: '8px',
-  margin: '0 auto',
-  width: '100%',
-  textAlign: 'center' as const
-};
-
-const paragraph = {
-  color: '#444',
-  fontSize: '15px',
-  fontFamily: 'HelveticaNeue,Helvetica,Arial,sans-serif',
-  letterSpacing: '0',
-  lineHeight: '23px',
-  padding: '0 40px',
-  margin: '0',
-  textAlign: 'center' as const
-};
-
-const link = {
-  color: '#444',
-  textDecoration: 'underline'
-};
-
-const footer = {
-  color: '#000',
-  fontSize: '12px',
-  fontWeight: 800,
-  letterSpacing: '0',
-  lineHeight: '23px',
-  margin: '0',
-  marginTop: '20px',
-  fontFamily: 'HelveticaNeue,Helvetica,Arial,sans-serif',
-  textAlign: 'center' as const,
-  textTransform: 'uppercase' as const
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  validationCode: '144833'
-} as PlaidVerifyIdentityEmailProps;
-
-export const templateName = 'Plaid Verify Identity';
-
-export const Template = ({ validationCode }: PlaidVerifyIdentityEmailProps) => (
-  <Html>
-    <Head />
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}plaid-logo.png\`} width="212" height="88" alt="Plaid" style={logo} />
-        <Text style={tertiary}>Verify Your Identity</Text>
-        <Heading style={secondary}>Enter the following code to finish linking Venmo.</Heading>
-        <Section style={codeContainer}>
-          <Text style={code}>{validationCode}</Text>
-        </Section>
-        <Text style={paragraph}>Not expecting this email?</Text>
-        <Text style={paragraph}>
-          Contact{' '}
-          <Link href="mailto:login@plaid.com" style={link}>
-            login@plaid.com
-          </Link>{' '}
-          if you did not request this code.
-        </Text>
-      </Container>
-      <Text style={footer}>Securely powered by Plaid.</Text>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_12 = `import {
-  Body,
-  Container,
-  Column,
-  Head,
-  Heading,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Text
-} from 'jsx-email';
-
-interface SlackConfirmEmailProps {
-  validationCode?: string;
-}
-
-const footerText = {
-  fontSize: '12px',
-  color: '#b7b7b7',
-  lineHeight: '15px',
-  textAlign: 'left' as const,
-  marginBottom: '50px'
-};
-
-const footerLink = {
-  color: '#b7b7b7',
-  textDecoration: 'underline'
-};
-
-const footerLogos = {
-  marginBottom: '32px',
-  paddingLeft: '8px',
-  paddingRight: '8px',
-  width: '100%'
-};
-
-const socialMediaIcon = {
-  display: 'inline',
-  marginLeft: '32px'
-};
-
-const main = {
-  backgroundColor: '#ffffff',
-  margin: '0 auto',
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif"
-};
-
-const container = {
-  maxWidth: '600px',
-  margin: '0 auto'
-};
-
-const logoContainer = {
-  marginTop: '32px'
-};
-
-const h1 = {
-  color: '#1d1c1d',
-  fontSize: '36px',
-  fontWeight: '700',
-  margin: '30px 0',
-  padding: '0',
-  lineHeight: '42px'
-};
-
-const heroText = {
-  fontSize: '20px',
-  lineHeight: '28px',
-  marginBottom: '30px'
-};
-
-const codeBox = {
-  background: 'rgb(245, 244, 245)',
-  borderRadius: '4px',
-  marginRight: '50px',
-  marginBottom: '30px',
-  padding: '43px 23px'
-};
-
-const confirmationCodeText = {
-  fontSize: '30px',
-  textAlign: 'center' as const,
-  verticalAlign: 'middle'
-};
-
-const text = {
-  color: '#000',
-  fontSize: '14px',
-  lineHeight: '24px'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  validationCode: 'DJZ-TLX'
-} as SlackConfirmEmailProps;
-
-export const templateName = 'Slack Confirm';
-
-export const Template = ({ validationCode }: SlackConfirmEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Confirm your email address</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Section style={logoContainer}>
-          <Img src={\`\${baseUrl}slack-logo.png\`} width="120" height="36" alt="Slack" />
-        </Section>
-        <Heading style={h1}>Confirm your email address</Heading>
-        <Text style={heroText}>
-          Your confirmation code is below - enter it in your open browser window and we'll help you
-          get signed in.
-        </Text>
-
-        <Section style={codeBox}>
-          <Text style={confirmationCodeText}>{validationCode}</Text>
-        </Section>
-
-        <Text style={text}>
-          If you didn't request this email, there's nothing to worry about - you can safely ignore
-          it.
-        </Text>
-
-        <Section>
-          <Row style={footerLogos}>
-            <Column style={{ width: '66%' }}>
-              <Img src={\`\${baseUrl}slack-logo.png\`} width="120" height="36" alt="Slack" />
-            </Column>
-            <Column>
-              <Section>
-                <Row>
-                  <Column>
-                    <Link href="/">
-                      <Img
-                        src={\`\${baseUrl}slack-twitter.png\`}
-                        width="32"
-                        height="32"
-                        alt="Slack"
-                        style={socialMediaIcon}
-                      />
-                    </Link>
-                  </Column>
-                  <Column>
-                    <Link href="/">
-                      <Img
-                        src={\`\${baseUrl}slack-facebook.png\`}
-                        width="32"
-                        height="32"
-                        alt="Slack"
-                        style={socialMediaIcon}
-                      />
-                    </Link>
-                  </Column>
-                  <Column>
-                    <Link href="/">
-                      <Img
-                        src={\`\${baseUrl}slack-linkedin.png\`}
-                        width="32"
-                        height="32"
-                        alt="Slack"
-                        style={socialMediaIcon}
-                      />
-                    </Link>
-                  </Column>
-                </Row>
-              </Section>
-            </Column>
-          </Row>
-        </Section>
-
-        <Section>
-          <Link
-            style={footerLink}
-            href="https://slackhq.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Our blog
-          </Link>
-          &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-          <Link
-            style={footerLink}
-            href="https://slack.com/legal"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Policies
-          </Link>
-          &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-          <Link
-            style={footerLink}
-            href="https://slack.com/help"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Help center
-          </Link>
-          &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-          <Link
-            style={footerLink}
-            href="https://slack.com/community"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-auth="NotApplicable"
-            data-linkindex="6"
-          >
-            Slack Community
-          </Link>
-          <Text style={footerText}>
-            ©2022 Slack Technologies, LLC, a Salesforce company. <br />
-            500 Howard Street, San Francisco, CA 94105, USA <br />
-            <br />
-            All rights reserved.
-          </Text>
-        </Section>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_13 = `import {
-  Body,
-  Column,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text,
-  Row
-} from 'jsx-email';
-
-interface StackOverflowTipsEmailProps {
-  tips?: { id: number; description: string }[];
-}
-
-const main = {
-  backgroundColor: '#f3f3f5',
-  fontFamily: 'HelveticaNeue,Helvetica,Arial,sans-serif'
-};
-
-const headerContent = { padding: '20px 30px 15px' };
-
-const headerContentTitle = {
-  color: '#fff',
-  fontSize: '27px',
-  fontWeight: 'bold',
-  lineHeight: '27px'
-};
-
-const headerContentSubtitle = {
-  color: '#fff',
-  fontSize: '17px'
-};
-
-const headerImageContainer = {
-  padding: '30px 10px'
-};
-
-const title = {
-  margin: '0 0 15px',
-  fontWeight: 'bold',
-  fontSize: '21px',
-  lineHeight: '21px',
-  color: '#0c0d0e'
-};
-
-const paragraph = {
-  fontSize: '15px',
-  lineHeight: '21px',
-  color: '#3c3f44'
-};
-
-const divider = {
-  margin: '30px 0'
-};
-
-const container = {
-  maxWidth: '680px',
-  width: '100%',
-  margin: '0 auto',
-  backgroundColor: '#ffffff'
-};
-
-const footer = {
-  width: '680px',
-  margin: '32px auto 0 auto',
-  padding: '0 30px'
-};
-
-const content = {
-  padding: '30px 30px 40px 30px'
-};
-
-const logo = {
-  display: 'flex',
-  background: '#f3f3f5',
-  padding: '20px 30px'
-};
-
-const header = {
-  borderRadius: '5px 5px 0 0',
-  display: 'flex',
-  flexDireciont: 'column',
-  backgroundColor: '#2b2d6e'
-};
-
-const buttonContainer = {
-  marginTop: '24px',
-  display: 'block'
-};
-
-const button = {
-  backgroundColor: '#0095ff',
-  border: '1px solid #0077cc',
-  fontSize: '17px',
-  lineHeight: '17px',
-  padding: '13px 17px',
-  borderRadius: '4px',
-  maxWidth: '120px',
-  color: '#fff'
-};
-
-const footerDivider = {
-  ...divider,
-  borderColor: '#d6d8db'
-};
-
-const footerText = {
-  fontSize: '12px',
-  lineHeight: '15px',
-  color: '#9199a1',
-  margin: '0'
-};
-
-const footerLink = {
-  display: 'inline-block',
-  color: '#9199a1',
-  textDecoration: 'underline',
-  fontSize: '12px',
-  marginRight: '10px',
-  marginBottom: '0',
-  marginTop: '8px'
-};
-
-const footerAddress = {
-  margin: '4px 0',
-  fontSize: '12px',
-  lineHeight: '15px',
-  color: '#9199a1'
-};
-
-const footerHeart = {
-  borderRadius: '1px',
-  border: '1px solid #d6d9dc',
-  padding: '4px 6px 3px 6px',
-  fontSize: '11px',
-  lineHeight: '11px',
-  fontFamily: 'Consolas,monospace',
-  color: '#e06c77',
-  maxWidth: 'min-content',
-  margin: '0 0 32px 0'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-const PropDefaults: StackOverflowTipsEmailProps = {
-  tips: [
-    {
-      id: 1,
-      description: 'To find a specific phrase, enter it in quotes: "local storage"'
-    },
-    {
-      id: 1,
-      description: 'To search within specific tag(s), enter them in square brackets: [javascript]'
-    },
-    {
-      id: 1,
-      description:
-        'Combine them to get even more precise results - [javascript] "local storage" searches for the phrase “local storage” in questions that have the [javascript] tag'
-    }
-  ]
-};
-
-export const previewProps = {
-  tips: PropDefaults.tips
-} as StackOverflowTipsEmailProps;
-
-export const templateName = 'StackOverflow Tips';
-
-export const Template = ({ tips = [] }: StackOverflowTipsEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Stack overflow tips for searching</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Section style={logo}>
-          <Img width={146} src={\`\${baseUrl}stack-overflow-logo.png\`} />
-        </Section>
-
-        <Section style={header}>
-          <Row>
-            <Column style={headerContent}>
-              <Heading style={headerContentTitle}>Find what you want, faster</Heading>
-              <Text style={headerContentSubtitle}>
-                Tips and tricks for searching on Stack Overflow
-              </Text>
-            </Column>
-            <Column style={headerImageContainer}>
-              <Img width={340} src={\`\${baseUrl}stack-overflow-header.png\`} />
-            </Column>
-          </Row>
-        </Section>
-
-        <Section style={content}>
-          <Heading as="h2" style={title}>
-            Searching for solutions
-          </Heading>
-          <Text style={paragraph}>
-            With more than 18 million questions, it's possible that someone has already provided a
-            solution to the problem you're facing.{' '}
-          </Text>
-
-          <Hr style={divider} />
-
-          <Heading as="h2" style={title}>
-            Use the search bar at the top of the page to find what you need
-          </Heading>
-          <Text style={paragraph}>Here are a few simple search tips to get you started:</Text>
-          <ul>
-            {tips.map((tip) => (
-              <li key={tip.id}>
-                <Text style={paragraph}>{tip.description}</Text>
-              </li>
-            ))}
-          </ul>
-
-          <Text style={paragraph}>
-            The more information you can put in the search bar, the more likely you will be to
-            either find the answer you need or feel confident that no one else has asked the
-            question before.
-          </Text>
-
-          <Hr style={divider} />
-
-          <Heading as="h2" style={title}>
-            Take a break and read about the worst coder in the world
-          </Heading>
-
-          <Section style={buttonContainer}>
-            <Link style={button} href="https://stackoverflow.blog/2019/10/22/">
-              I need a break
-            </Link>
-          </Section>
-        </Section>
-      </Container>
-
-      <Section style={footer}>
-        <Text style={footerText}>
-          You're receiving this email because your Stack Overflow activity triggered this tip or
-          reminder.
-        </Text>
-
-        <Link href="/" style={footerLink}>
-          Unsubscribe from emails like this{' '}
-        </Link>
-        <Link href="/" style={footerLink}>
-          Edit email settings{' '}
-        </Link>
-        <Link href="/" style={footerLink}>
-          Contact us
-        </Link>
-        <Link href="/" style={footerLink}>
-          Privacy
-        </Link>
-
-        <Hr style={footerDivider} />
-
-        <Img width={111} src={\`\${baseUrl}stack-overflow-logo-sm.png\`} />
-        <Text style={footerAddress}>
-          <strong>Stack Overflow</strong>, 110 William Street, 28th Floor, New York, NY 10038
-        </Text>
-        <Text style={footerHeart}>{'<3'}</Text>
-      </Section>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_14 = `import {
-  Body,
-  Button,
-  Container,
-  Column,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Tailwind,
-  Text
-} from 'jsx-email';
-
-interface VercelInviteUserEmailProps {
-  username?: string;
-  userImage?: string;
-  invitedByUsername?: string;
-  invitedByEmail?: string;
-  teamName?: string;
-  teamImage?: string;
-  inviteLink?: string;
-  inviteFromIp?: string;
-  inviteFromLocation?: string;
-}
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  username: 'batman',
-  userImage: \`\${baseUrl}batman-adam.jpg\`,
-  invitedByUsername: 'joker',
-  invitedByEmail: 'joker@arkham.com',
-  teamName: 'Batmobile',
-  teamImage: \`\${baseUrl}vercel-team.png\`,
-  inviteLink: 'https://vercel.com/teams/invite/foo',
-  inviteFromIp: '123.45.678.910',
-  inviteFromLocation: 'Gotham City'
-} as VercelInviteUserEmailProps;
-
-export const templateName = 'Vercel Invite User';
-
-export const Template = ({
-  username,
-  userImage,
-  invitedByUsername,
-  invitedByEmail,
-  teamName,
-  teamImage,
-  inviteLink,
-  inviteFromIp,
-  inviteFromLocation
-}: VercelInviteUserEmailProps) => {
-  const previewText = \`Join \${invitedByUsername} on Vercel\`;
-
-  return (
-    <Html>
-      <Head />
-      <Preview>{previewText}</Preview>
-      <Tailwind>
-        <Body className="mx-auto my-auto bg-white font-sans">
-          <Container className="mx-auto my-[40px] w-[465px] border-separate rounded border border-solid border-[#eaeaea] p-[20px]">
-            <Section className="mt-[32px]">
-              <Img
-                src={\`\${baseUrl}vercel-logo.png\`}
-                width="40"
-                height="37"
-                alt="Vercel"
-                className="mx-auto my-0"
-              />
-            </Section>
-            <Heading className="mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-black">
-              Join <strong>{teamName}</strong> on <strong>Vercel</strong>
-            </Heading>
-            <Text className="text-[14px] leading-[24px] text-black">Hello {username},</Text>
-            <Text className="text-[14px] leading-[24px] text-black">
-              <strong>{invitedByUsername}</strong> (
-              <Link href={\`mailto:\${invitedByEmail}\`} className="text-blue-600 no-underline">
-                {invitedByEmail}
-              </Link>
-              ) has invited you to the <strong>{teamName}</strong> team on <strong>Vercel</strong>.
-            </Text>
-            <Section>
-              <Row>
-                <Column align="right">
-                  <Img className="rounded-full" src={userImage} width="64" height="64" />
-                </Column>
-                <Column align="center">
-                  <Img
-                    src={\`\${baseUrl}vercel-arrow.png\`}
-                    width="12"
-                    height="9"
-                    alt="invited you to"
-                  />
-                </Column>
-                <Column align="left">
-                  <Img className="rounded-full" src={teamImage} width="64" height="64" />
-                </Column>
-              </Row>
-            </Section>
-            <Section className="mb-[32px] mt-[32px] text-center">
-              <Button
-                backgroundColor="#000000"
-                width={120}
-                height={38}
-                borderRadius={4}
-                textColor="#fff"
-                align="center"
-                href={inviteLink}
-              >
-                Join the team
-              </Button>
-            </Section>
-            <Text className="!text-[14px] leading-[24px] text-black">
-              or copy and paste this URL into your browser:{' '}
-              <Link href={inviteLink} className="text-blue-600 no-underline">
-                {inviteLink}
-              </Link>
-            </Text>
-            <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
-            <Text className="!text-[12px] leading-[24px] text-[#666666]">
-              This invitation was intended for <span className="text-black">{username} </span>.This
-              invite was sent from <span className="text-black">{inviteFromIp}</span> located in{' '}
-              <span className="text-black">{inviteFromLocation}</span>. If you were not expecting
-              this invitation, you can ignore this email. If you are concerned about your account's
-              safety, please reply to this email to get in touch with us.
-            </Text>
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
-  );
-};
-`;
-
-const __vite_glob_2_15 = `import { Body, Button, Container, Head, Hr, Html, Img, Preview, Section, Text } from 'jsx-email';
-
-interface KoalaWelcomeEmailProps {
-  userFirstname: string;
-}
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const container = {
-  margin: '0 auto',
-  padding: '20px 0 48px'
-};
-
-const logo = {
-  margin: '0 auto'
-};
-
-const paragraph = {
-  fontSize: '16px',
-  lineHeight: '26px'
-};
-
-const btnContainer = {
-  textAlign: 'center' as const
-};
-
-const hr = {
-  borderColor: '#cccccc',
-  margin: '20px 0'
-};
-
-const footer = {
-  color: '#8898aa',
-  fontSize: '12px'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  userFirstname: 'Bruce'
-} as KoalaWelcomeEmailProps;
-
-export const templateName = 'Koala Welcome';
-
-export const Template = ({ userFirstname }: KoalaWelcomeEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>The sales intelligence platform that helps you uncover qualified leads.</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Img src={\`\${baseUrl}koala-logo.png\`} width="170" height="50" alt="Koala" style={logo} />
-        <Text style={paragraph}>Hi {userFirstname},</Text>
-        <Text style={paragraph}>
-          Welcome to Koala, the sales intelligence platform that helps you uncover qualified leads
-          and close deals faster.
-        </Text>
-        <Section style={btnContainer}>
-          <Button
-            width={106}
-            height={44}
-            backgroundColor="#5F51E8"
-            borderRadius={3}
-            textColor="#fff"
-            href="https://getkoala.com"
-          >
-            Get started
-          </Button>
-        </Section>
-        <Text style={paragraph}>
-          Best,
-          <br />
-          The Koala team
-        </Text>
-        <Hr style={hr} />
-        <Text style={footer}>408 Warren Rd - San Mateo, CA 94402</Text>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_16 = `import {
-  Body,
-  Button,
-  Column,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Row,
-  Section,
-  Tailwind,
-  Text
-} from 'jsx-email';
-import * as React from 'react';
-
-interface NetlifyWelcomeEmailProps {
-  steps?: {
-    id: number;
-    Description: React.ReactNode;
-  }[];
-  links?: string[];
-}
-
-const PropDefaults: NetlifyWelcomeEmailProps = {
-  steps: [
-    {
-      id: 1,
-      Description: (
-        <li className="mb-20" key={1}>
-          <strong>Deploy your first project.</strong> <Link>Connect to Git, choose a template</Link>
-          , or manually deploy a project you've been working on locally.
-        </li>
-      )
-    },
-    {
-      id: 2,
-      Description: (
-        <li className="mb-20" key={2}>
-          <strong>Check your deploy logs.</strong> Find out what's included in your build and watch
-          for errors or failed deploys. <Link>Learn how to read your deploy logs</Link>.
-        </li>
-      )
-    },
-    {
-      id: 3,
-      Description: (
-        <li className="mb-20" key={3}>
-          <strong>Choose an integration.</strong> Quickly discover, connect, and configure the right
-          tools for your project with 150+ integrations to choose from.{' '}
-          <Link>Explore the Integrations Hub</Link>.
-        </li>
-      )
-    },
-    {
-      id: 4,
-      Description: (
-        <li className="mb-20" key={4}>
-          <strong>Set up a custom domain.</strong> You can register a new domain and buy it through
-          Netlify or assign a domain you already own to your site. <Link>Add a custom domain</Link>.
-        </li>
-      )
-    }
-  ],
-  links: ['Visit the forums', 'Read the docs', 'Contact an expert']
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const templateName = 'Netlify Welcome';
-
-export const Template = ({
-  steps = PropDefaults.steps,
-  links = PropDefaults.links
-}: NetlifyWelcomeEmailProps) => {
-  return (
-    <Html>
-      <Head />
-      <Preview>Netlify Welcome</Preview>
-      <Tailwind
-        config={{
-          theme: {
-            colors: {
-              brand: '#2250f4',
-              offwhite: '#fafbfb'
-            },
-            spacing: {
-              0: '0px',
-              20: '20px',
-              45: '45px'
-            }
-          }
-        }}
-      >
-        <Body className="bg-offwhite font-sans text-base">
-          <Img
-            src={\`\${baseUrl}netlify-logo.png\`}
-            width="184"
-            height="75"
-            alt="Netlify"
-            className="mx-auto my-20"
-          />
-          <Container className="p-45 bg-white">
-            <Heading className="my-0 text-center">Welcome to Netlify</Heading>
-
-            <Section>
-              <Row>
-                <Text className="text-base">
-                  Congratulations! You're joining over 3 million developers around the world who use
-                  Netlify to build and ship sites, stores, and apps.
-                </Text>
-
-                <Text className="text-base">Here's how to get started:</Text>
-              </Row>
-            </Section>
-
-            <ul>{steps?.map(({ Description }) => Description)}</ul>
-
-            <Section className="text-center">
-              <Button
-                width={182}
-                height={56}
-                backgroundColor="#2250f4"
-                borderRadius={8}
-                textColor="#fff"
-              >
-                Go to your dashboard
-              </Button>
-            </Section>
-
-            <Section className="mt-45">
-              <Row>
-                {links?.map((link) => (
-                  <Column>
-                    <Link className="font-bold text-black underline">{link}</Link>{' '}
-                    <span className="text-green-500">→</span>
-                  </Column>
-                ))}
-              </Row>
-            </Section>
-          </Container>
-
-          <Container className="mt-20">
-            <Section>
-              <Row>
-                <Column className="px-20 text-right">
-                  <Link>Unsubscribe</Link>
-                </Column>
-                <Column className="text-left">
-                  <Link>Manage Preferences</Link>
-                </Column>
-              </Row>
-            </Section>
-            <Text className="mb-45 text-center text-gray-400">
-              Netlify, 44 Montgomery Street, Suite 300 San Francisco, CA
-            </Text>
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
-  );
-};
-`;
-
-const __vite_glob_2_17 = `import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text
-} from 'jsx-email';
-
-const main = {
-  backgroundColor: '#f6f9fc',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif'
-};
-
-const container = {
-  backgroundColor: '#ffffff',
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  marginBottom: '64px'
-};
-
-const box = {
-  padding: '0 48px'
-};
-
-const hr = {
-  borderColor: '#e6ebf1',
-  margin: '20px 0'
-};
-
-const paragraph = {
-  color: '#525f7f',
-
-  fontSize: '16px',
-  lineHeight: '24px',
-  textAlign: 'left' as const
-};
-
-const anchor = {
-  color: '#556cd6'
-};
-
-const footer = {
-  color: '#8898aa',
-  fontSize: '12px',
-  lineHeight: '16px'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const templateName = 'Stripe Welcome';
-
-export const Template = () => (
-  <Html>
-    <Head />
-    <Preview>You're now ready to make live transactions with Stripe!</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Section style={box}>
-          <Img src={\`\${baseUrl}stripe-logo.png\`} width="49" height="21" alt="Stripe" />
-          <Hr style={hr} />
-          <Text style={paragraph}>
-            Thanks for submitting your account information. You're now ready to make live
-            transactions with Stripe!
-          </Text>
-          <Text style={paragraph}>
-            You can view your payments and a variety of other information about your account right
-            from your dashboard.
-          </Text>
-          <Button
-            align="center"
-            backgroundColor="#656ee8"
-            borderRadius={5}
-            textColor="#fff"
-            width={300}
-            height={40}
-            href="https://dashboard.stripe.com/login"
-          >
-            View your Stripe Dashboard
-          </Button>
-          <Hr style={hr} />
-          <Text style={paragraph}>
-            If you haven't finished your integration, you might find our{' '}
-            <Link style={anchor} href="https://stripe.com/docs">
-              docs
-            </Link>{' '}
-            handy.
-          </Text>
-          <Text style={paragraph}>
-            Once you're ready to start accepting payments, you'll just need to use your live{' '}
-            <Link style={anchor} href="https://dashboard.stripe.com/login?redirect=%2Fapikeys">
-              API keys
-            </Link>{' '}
-            instead of your test API keys. Your account can simultaneously be used for both test and
-            live requests, so you can continue testing while accepting live payments. Check out our{' '}
-            <Link style={anchor} href="https://stripe.com/docs/dashboard">
-              tutorial about account basics
-            </Link>
-            .
-          </Text>
-          <Text style={paragraph}>
-            Finally, we've put together a{' '}
-            <Link style={anchor} href="https://stripe.com/docs/checklist/website">
-              quick checklist
-            </Link>{' '}
-            to ensure your website conforms to card network standards.
-          </Text>
-          <Text style={paragraph}>
-            We'll be here to help you with any step along the way. You can find answers to most
-            questions and get in touch with us on our{' '}
-            <Link style={anchor} href="https://support.stripe.com/">
-              support site
-            </Link>
-            .
-          </Text>
-          <Text style={paragraph}>— The Stripe team</Text>
-          <Hr style={hr} />
-          <Text style={footer}>Stripe, 354 Oyster Point Blvd, South San Francisco, CA 94080</Text>
-        </Section>
-      </Container>
-    </Body>
-  </Html>
-);
-`;
-
-const __vite_glob_2_18 = `import {
-  Body,
-  Button,
-  Container,
-  Column,
-  Head,
-  Heading,
-  Html,
-  Img,
-  Preview,
-  Row,
-  Section,
-  Text
-} from 'jsx-email';
-
-interface YelpRecentLoginEmailProps {
-  userFirstName?: string;
-  loginDate?: Date;
-  loginDevice?: string;
-  loginLocation?: string;
-  loginIp?: string;
-}
-
-const main = {
-  backgroundColor: '#fff',
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif'
-};
-
-const paragraph = {
-  fontSize: 16
-};
-
-const logo = {
-  padding: '30px 20px'
-};
-
-const containerButton = {
-  display: 'flex',
-  justifyContent: 'center',
-  width: '100%'
-};
-
-const content = {
-  border: '1px solid rgb(0,0,0, 0.1)',
-  borderRadius: '3px',
-  overflow: 'hidden'
-};
-
-const boxInfos = {
-  padding: '20px 40px'
-};
-
-const containerImageFooter = {
-  padding: '45px 0 0 0'
-};
-
-const baseUrl = 'https://jsx.email/assets/demo/';
-
-export const previewProps = {
-  userFirstName: 'Bruce',
-  loginDate: new Date('September 7, 2022, 10:58 am'),
-  loginDevice: 'Chrome on Mac OS X',
-  loginLocation: 'Gotham City, United States',
-  loginIp: '12.345.67.891'
-} as YelpRecentLoginEmailProps;
-
-export const templateName = 'Yelp Recent Login';
-
-export const Template = ({
-  userFirstName,
-  loginDate,
-  loginDevice,
-  loginLocation,
-  loginIp
-}: YelpRecentLoginEmailProps) => {
-  const formattedDate = new Intl.DateTimeFormat('en', {
-    dateStyle: 'long',
-    timeStyle: 'short'
-  }).format(loginDate);
-
-  return (
-    <Html>
-      <Head />
-      <Preview>Yelp recent login</Preview>
-      <Body style={main}>
-        <Container>
-          <Section style={logo}>
-            <Img src={\`\${baseUrl}yelp-logo.png\`} />
-          </Section>
-
-          <Section style={content}>
-            <Row>
-              <Img width={620} src={\`\${baseUrl}yelp-header.png\`} />
-            </Row>
-
-            <Row style={{ ...boxInfos, paddingBottom: '0' }}>
-              <Column>
-                <Heading
-                  style={{
-                    fontSize: 32,
-                    fontWeight: 'bold',
-                    textAlign: 'center'
-                  }}
-                >
-                  Hi {userFirstName},
-                </Heading>
-                <Heading
-                  as="h2"
-                  style={{
-                    fontSize: 26,
-                    fontWeight: 'bold',
-                    textAlign: 'center'
-                  }}
-                >
-                  We noticed a recent login to your Yelp account.
-                </Heading>
-
-                <Text style={paragraph}>
-                  <b>Time: </b>
-                  {formattedDate}
-                </Text>
-                <Text style={{ ...paragraph, marginTop: -5 }}>
-                  <b>Device: </b>
-                  {loginDevice}
-                </Text>
-                <Text style={{ ...paragraph, marginTop: -5 }}>
-                  <b>Location: </b>
-                  {loginLocation}
-                </Text>
-                <Text
-                  style={{
-                    color: 'rgb(0,0,0, 0.5)',
-                    fontSize: 14,
-                    marginTop: -5
-                  }}
-                >
-                  *Approximate geographic location based on IP address:
-                  {loginIp}
-                </Text>
-
-                <Text style={paragraph}>If this was you, there's nothing else you need to do.</Text>
-                <Text style={{ ...paragraph, marginTop: -5 }}>
-                  If this wasn't you or if you have additional questions, please see our support
-                  page.
-                </Text>
-              </Column>
-            </Row>
-            <Row style={{ ...boxInfos, paddingTop: '0' }}>
-              <Column style={containerButton} colSpan={2}>
-                <Button
-                  width={150}
-                  height={46}
-                  backgroundColor="#e00707"
-                  borderRadius={3}
-                  textColor="#fff"
-                  borderSize={1}
-                  borderColor="rgb(0,0,0, 0.1)"
-                >
-                  Learn More
-                </Button>
-              </Column>
-            </Row>
-          </Section>
-
-          <Section style={containerImageFooter}>
-            <Img width={620} src={\`\${baseUrl}yelp-footer.png\`} />
-          </Section>
-
-          <Text
-            style={{
-              textAlign: 'center',
-              fontSize: 12,
-              color: 'rgb(0,0,0, 0.7)'
-            }}
-          >
-            © 2022 | Yelp Inc., 350 Mission Street, San Francisco, CA 94105, U.S.A. | www.yelp.com
-          </Text>
-        </Container>
-      </Body>
-    </Html>
-  );
-};
-`;
-
-const config = {
-  buildPath: "../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/",
-  relativePath: "../../demo/emails/"
-};
-
 function titleize(string) {
 	if (typeof string !== 'string') {
 		throw new TypeError('Expected a string');
@@ -36452,37 +32781,20 @@ const parseName = (path) => {
 };
 
 const gather = async () => {
-  const relativePath = config.relativePath.endsWith("/") ? config.relativePath : `${config.relativePath}/`;
-  const buildPath = config.buildPath.endsWith("/") ? config.buildPath : `${config.buildPath}/`;
-  const absBuildPath = `/${buildPath.replace(/(\.\.\/)+/, "")}`;
-  const htmlFiles = /* #__PURE__ */ Object.assign({"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/airbnb-review.html": __vite_glob_0_0,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/apple-receipt.html": __vite_glob_0_1,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/codepen-challengers.html": __vite_glob_0_2,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/dropbox-reset-password.html": __vite_glob_0_3,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/github-access-token.html": __vite_glob_0_4,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/linear-login-code.html": __vite_glob_0_5,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/magic links/notion-magic-link.html": __vite_glob_0_6,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/magic links/raycast-magic-link.html": __vite_glob_0_7,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/twitch-reset-password.html": __vite_glob_0_8,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/google-play-policy-update.html": __vite_glob_0_9,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/nike-receipt.html": __vite_glob_0_10,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/plaid-verify-identity.html": __vite_glob_0_11,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/slack-confirm.html": __vite_glob_0_12,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/stack-overflow-tips.html": __vite_glob_0_13,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/vercel-invite-user.html": __vite_glob_0_14,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/koala-welcome.html": __vite_glob_0_15,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/netlify-welcome.html": __vite_glob_0_16,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/stripe-welcome.html": __vite_glob_0_17,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/yelp-recent-login.html": __vite_glob_0_18
-
-
+  const imports = /* #__PURE__ */ Object.assign({"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/airbnb-review.js": () => __vitePreload(() => import('./airbnb-review-rU0DVZv9.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/apple-receipt.js": () => __vitePreload(() => import('./apple-receipt-CIO5ur4h.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/codepen-challengers.js": () => __vitePreload(() => import('./codepen-challengers-Cx7GppqH.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/dropbox-reset-password.js": () => __vitePreload(() => import('./dropbox-reset-password-BdinoOi9.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/github-access-token.js": () => __vitePreload(() => import('./github-access-token-C3dJw6HC.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/linear-login-code.js": () => __vitePreload(() => import('./linear-login-code-zHV3B1Wt.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/magic links/notion-magic-link.js": () => __vitePreload(() => import('./notion-magic-link-C5_t7KWz.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/magic links/raycast-magic-link.js": () => __vitePreload(() => import('./raycast-magic-link-CinG_tCw.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/twitch-reset-password.js": () => __vitePreload(() => import('./twitch-reset-password-D-UAqahR.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/google-play-policy-update.js": () => __vitePreload(() => import('./google-play-policy-update-Dwa1zy1W.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/nike-receipt.js": () => __vitePreload(() => import('./nike-receipt-V6RM2li4.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/plaid-verify-identity.js": () => __vitePreload(() => import('./plaid-verify-identity-BLzCfuWQ.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/slack-confirm.js": () => __vitePreload(() => import('./slack-confirm-BgICXX0K.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/stack-overflow-tips.js": () => __vitePreload(() => import('./stack-overflow-tips-1pPcv1xk.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/vercel-invite-user.js": () => __vitePreload(() => import('./vercel-invite-user-BdBusWf8.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/koala-welcome.js": () => __vitePreload(() => import('./koala-welcome-Bm4NetsS.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/netlify-welcome.js": () => __vitePreload(() => import('./netlify-welcome-k1zW1e9c.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/stripe-welcome.js": () => __vitePreload(() => import('./stripe-welcome-BuzWM4ke.js'),true?[]:void 0,import.meta.url).then(m => m["default"]),"../../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/yelp-recent-login.js": () => __vitePreload(() => import('./yelp-recent-login-CwyLyjvL.js'),true?[]:void 0,import.meta.url).then(m => m["default"])
 
 });
-  const plainFiles = /* #__PURE__ */ Object.assign({"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/airbnb-review.txt": __vite_glob_1_0,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/apple-receipt.txt": __vite_glob_1_1,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/codepen-challengers.txt": __vite_glob_1_2,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/dropbox-reset-password.txt": __vite_glob_1_3,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/github-access-token.txt": __vite_glob_1_4,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/linear-login-code.txt": __vite_glob_1_5,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/magic links/notion-magic-link.txt": __vite_glob_1_6,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/magic links/raycast-magic-link.txt": __vite_glob_1_7,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/credential emails/twitch-reset-password.txt": __vite_glob_1_8,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/google-play-policy-update.txt": __vite_glob_1_9,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/nike-receipt.txt": __vite_glob_1_10,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/plaid-verify-identity.txt": __vite_glob_1_11,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/slack-confirm.txt": __vite_glob_1_12,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/stack-overflow-tips.txt": __vite_glob_1_13,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/vercel-invite-user.txt": __vite_glob_1_14,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/koala-welcome.txt": __vite_glob_1_15,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/netlify-welcome.txt": __vite_glob_1_16,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/welcome emails/stripe-welcome.txt": __vite_glob_1_17,"../../../../../../../private/var/folders/07/ywbfgwc57_z4yx4m8vzhr8580000gp/T/jsx-email/preview/yelp-recent-login.txt": __vite_glob_1_18
-
-
-
-});
-  const sourceFiles = /* #__PURE__ */ Object.assign({"../../demo/emails/airbnb-review.tsx": __vite_glob_2_0,"../../demo/emails/apple-receipt.tsx": __vite_glob_2_1,"../../demo/emails/codepen-challengers.tsx": __vite_glob_2_2,"../../demo/emails/credential emails/dropbox-reset-password.tsx": __vite_glob_2_3,"../../demo/emails/credential emails/github-access-token.tsx": __vite_glob_2_4,"../../demo/emails/credential emails/linear-login-code.tsx": __vite_glob_2_5,"../../demo/emails/credential emails/magic links/notion-magic-link.tsx": __vite_glob_2_6,"../../demo/emails/credential emails/magic links/raycast-magic-link.tsx": __vite_glob_2_7,"../../demo/emails/credential emails/twitch-reset-password.tsx": __vite_glob_2_8,"../../demo/emails/google-play-policy-update.tsx": __vite_glob_2_9,"../../demo/emails/nike-receipt.tsx": __vite_glob_2_10,"../../demo/emails/plaid-verify-identity.tsx": __vite_glob_2_11,"../../demo/emails/slack-confirm.tsx": __vite_glob_2_12,"../../demo/emails/stack-overflow-tips.tsx": __vite_glob_2_13,"../../demo/emails/vercel-invite-user.tsx": __vite_glob_2_14,"../../demo/emails/welcome emails/koala-welcome.tsx": __vite_glob_2_15,"../../demo/emails/welcome emails/netlify-welcome.tsx": __vite_glob_2_16,"../../demo/emails/welcome emails/stripe-welcome.tsx": __vite_glob_2_17,"../../demo/emails/yelp-recent-login.tsx": __vite_glob_2_18
-
-
-
-});
-  const { default: templateNameMap } = await __vitePreload(() => import('./template-name-map-T9iAiHih.js'),true?[]:void 0);
-  const fileKeys = Object.keys(sourceFiles);
-  const templateFiles = fileKeys.reduce((acc, path) => {
-    const basePath = path.replace(relativePath, buildPath).replace(/\.(jsx|tsx)$/, "");
-    const absHtmlPath = `${path.replace(relativePath, absBuildPath).replace(/\.(jsx|tsx)$/, "")}.html`;
-    const templateName = templateNameMap[absHtmlPath] || basePath.split("/").at(-1);
+  const builtFiles = await Promise.all(Object.values(imports).map((imp) => imp()));
+  const targetPath = "/Users/powella/code/jsx-email/apps/demo/emails";
+  const templateFiles = builtFiles.reduce((acc, file) => {
+    const templateName = file.templateName || file.sourceFile.split("/").at(-1);
     return {
       ...acc,
-      [path]: {
-        html: htmlFiles[`${basePath}.html`],
-        path: path.replace(relativePath, ""),
-        plain: plainFiles[`${basePath}.txt`],
-        source: sourceFiles[path],
+      [file.sourceFile]: {
+        html: file.html,
+        path: file.sourcePath.replace(`${targetPath}/`, ""),
+        plain: file.plain,
+        source: file.source,
         templateName
       }
     };
@@ -36545,7 +32857,7 @@ const getRoutes = (templates) => {
 };
 const getRouter = (templates) => {
   const { routes, templateParts } = getRoutes(Object.values(templates));
-  const router = createBrowserRouter([
+  const router = createHashRouter([
     {
       element: /* @__PURE__ */ jsxRuntimeExports.jsx(Layout, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Home, { templateParts }) }),
       errorElement: /* @__PURE__ */ jsxRuntimeExports.jsx(Error$1, {}),
@@ -36561,8 +32873,5 @@ const router = getRouter(await gather());
 const rootElement = document.getElementById("root");
 const root = client.createRoot(rootElement);
 root.render(
-  /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.StrictMode, { children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { children: "h" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(RouterProvider, { router })
-  ] })
+  /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.StrictMode, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(RouterProvider, { router }) })
 );
